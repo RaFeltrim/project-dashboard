@@ -1,0 +1,358 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum ExpenseSection {
+  PESSOAL
+  CASA
+  PROFISSIONAL
+}
+
+enum MotorType {
+  MERCADO_PAGO
+  SANTANDER
+  NUBANK_RATEIO
+  CARTAO_TIA
+  MANUAL
+}
+
+enum FundingSourceType {
+  CREDIT_CARD
+  BANK_ACCOUNT
+  DIGITAL_WALLET
+  BENEFITS_CARD
+  CASH
+  OTHER
+}
+
+enum TransactionKind {
+  CHARGE
+  REFUND
+  PAYMENT
+  TRANSFER
+}
+
+enum TransactionStatus {
+  POSTED
+  PROJECTED
+  RECONCILED
+  REFUNDED_PARTIAL
+  REFUNDED_FULL
+  CANCELED
+}
+
+enum AllocationMode {
+  EQUAL
+  PERCENTAGE
+  FIXED
+}
+
+enum InvoiceStatus {
+  PENDING
+  PARSED
+  CONFIRMED
+  ERROR
+}
+
+// ==========================================
+// AUTH MODELS
+// ==========================================
+
+model User {
+  id             String    @id @default(cuid())
+  name           String?
+  email          String    @unique
+  passwordHash   String
+  role           UserRole  @default(USER)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  accounts           Account[]
+  sessions           Session[]
+  categories         Category[]
+  stakeholders       Stakeholder[]
+  fundingSources     FundingSource[]
+  merchantAliases    MerchantAlias[]
+  transactions       Transaction[]
+  invoices           Invoice[]
+  recurringCharges   RecurringCharge[]
+  mercadoPagoConfig  MercadoPagoConfig?
+  vaults             Vault[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ==========================================
+// CORE FINANCIAL MODELS
+// ==========================================
+
+model Category {
+  id           String         @id @default(cuid())
+  userId       String
+  name         String
+  section      ExpenseSection
+  icon         String?
+  color        String?
+  isDefault    Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([userId, name])
+  @@index([userId, section])
+}
+
+model Stakeholder {
+  id          String          @id @default(cuid())
+  userId      String
+  name        String
+  type        String          @default("PERSON") // PERSON | GROUP
+  active      Boolean         @default(true)
+  color       String?
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  allocations TransactionAllocation[]
+
+  @@unique([userId, name])
+  @@index([userId, active])
+}
+
+model FundingSource {
+  id              String            @id @default(cuid())
+  userId          String
+  name            String
+  type            FundingSourceType @default(BANK_ACCOUNT)
+  provider        String?
+  lastFour        String?
+  purpose         String?
+  color           String?
+  icon            String?
+  balance         Decimal?          @db.Decimal(12, 2)
+  active          Boolean           @default(true)
+  notes           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions    Transaction[]
+
+  @@unique([userId, name])
+  @@index([userId, active])
+}
+
+model MerchantAlias {
+  id                    String   @id @default(cuid())
+  userId                String
+  rawDescription        String
+  normalizedDescription String
+  active                Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, rawDescription])
+}
+
+// ==========================================
+// VAULTS (Caixinhas)
+// ==========================================
+
+model Vault {
+  id           String        @id @default(cuid())
+  userId       String
+  name         String
+  targetAmount Decimal?      @db.Decimal(12, 2)
+  balance      Decimal       @default(0) @db.Decimal(12, 2)
+  yieldRate    Decimal?      @db.Decimal(5, 4) // ex: 0.0105 para 1.05%
+  color        String?
+  icon         String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([userId, name])
+}
+
+// ==========================================
+// TRANSACTIONS
+// ==========================================
+
+model Transaction {
+  id                    String              @id @default(cuid())
+  userId                String
+  fundingSourceId       String?
+  categoryId            String?
+  vaultId               String?
+  motor                 MotorType           @default(MANUAL)
+  section               ExpenseSection      @default(PESSOAL)
+  kind                  TransactionKind     @default(CHARGE)
+  status                TransactionStatus   @default(POSTED)
+  rawDescription        String
+  normalizedDescription String
+  amount                Decimal             @db.Decimal(12, 2)
+  occurredAt            DateTime
+  billingPeriod         String?
+  installmentGroupId    String?
+  installmentIndex      Int?
+  installmentCount      Int?
+  splitEnabled          Boolean             @default(false)
+  splitCount            Int                 @default(2)
+  notes                 String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fundingSource         FundingSource?      @relation(fields: [fundingSourceId], references: [id], onDelete: SetNull)
+  category              Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  vault                 Vault?              @relation(fields: [vaultId], references: [id], onDelete: SetNull)
+  allocations           TransactionAllocation[]
+  refundLinksAsOriginal RefundLink[]        @relation("RefundOriginal")
+  refundLinksAsRefund   RefundLink[]        @relation("RefundRefund")
+
+  @@index([userId, motor, occurredAt])
+  @@index([userId, section, occurredAt])
+  @@index([userId, billingPeriod])
+  @@index([userId, installmentGroupId])
+}
+
+model TransactionAllocation {
+  id            String         @id @default(cuid())
+  transactionId String
+  stakeholderId String
+  mode          AllocationMode @default(EQUAL)
+  amount        Decimal        @db.Decimal(12, 2)
+  settledAmount Decimal        @default(0) @db.Decimal(12, 2)
+  ratio         Decimal?       @db.Decimal(10, 6)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  transaction   Transaction    @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  stakeholder   Stakeholder    @relation(fields: [stakeholderId], references: [id], onDelete: Cascade)
+
+  @@index([transactionId])
+  @@index([stakeholderId])
+}
+
+model RefundLink {
+  id                    String      @id @default(cuid())
+  originalTransactionId String
+  refundTransactionId   String      @unique
+  amount                Decimal     @db.Decimal(12, 2)
+  createdAt             DateTime    @default(now())
+  originalTransaction   Transaction @relation("RefundOriginal", fields: [originalTransactionId], references: [id], onDelete: Cascade)
+  refundTransaction     Transaction @relation("RefundRefund", fields: [refundTransactionId], references: [id], onDelete: Cascade)
+
+  @@index([originalTransactionId])
+}
+
+// ==========================================
+// MOTOR-SPECIFIC MODELS
+// ==========================================
+
+// Motor 2 (Santander) + Motor 3 (Nubank Rateio): Invoice uploads
+model Invoice {
+  id            String        @id @default(cuid())
+  userId        String
+  motor         MotorType
+  rawContent    String?       @db.Text
+  fileName      String?
+  closingDay    Int?
+  billingPeriod String?
+  status        InvoiceStatus @default(PENDING)
+  parsedData    Json?
+  totalAmount   Decimal?      @db.Decimal(12, 2)
+  userAmount    Decimal?      @db.Decimal(12, 2)
+  errorMessage  String?
+  processedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, motor, status])
+  @@index([userId, billingPeriod])
+}
+
+// Motor 4 (Cartão Tia): Recurring charges
+model RecurringCharge {
+  id               String    @id @default(cuid())
+  userId           String
+  motor            MotorType @default(CARTAO_TIA)
+  description      String
+  amount           Decimal   @db.Decimal(12, 2)
+  dayOfMonth       Int
+  isInstallment    Boolean   @default(false)
+  installmentIndex Int?
+  installmentTotal Int?
+  active           Boolean   @default(true)
+  startsAt         DateTime
+  endsAt           DateTime?
+  lastChargedAt    DateTime?
+  nextChargeAt     DateTime?
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, active, nextChargeAt])
+}
+
+// Motor 1 (Mercado Pago): API config
+model MercadoPagoConfig {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  accessToken  String    @db.Text
+  lastSyncAt   DateTime?
+  balance      Decimal?  @db.Decimal(12, 2)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

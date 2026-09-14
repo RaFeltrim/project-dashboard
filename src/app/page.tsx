@@ -1,0 +1,213 @@
+"use client";
+
+import { useSession } from "next-auth/react";
+import { trpc } from "../lib/trpc";
+import Link from "next/link";
+import { useState } from "react";
+import { SEED_USER_ID } from "../lib/constants";
+
+export default function Home() {
+  const { data: session } = useSession();
+  const userId = session?.user?.id ?? SEED_USER_ID;
+
+  const { data, isLoading } = trpc.dashboard.getConsolidatedData.useQuery(
+    { userId },
+    { enabled: !!userId }
+  );
+
+  const [fastChatInput, setFastChatInput] = useState("");
+  
+  const fastChat = trpc.fastChat.process.useMutation({
+    onSuccess: (data) => {
+      alert(`Lançado: R$ ${data.transaction.amount} (${data.transaction.rawDescription}) -> Categoria: ${data.categoryGuess}`);
+      setFastChatInput("");
+    },
+    onError: (err) => {
+      alert("Erro: " + err.message);
+    }
+  });
+
+  const handleFastChat = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fastChatInput || !userId) return;
+    fastChat.mutate({ userId, message: fastChatInput });
+  };
+
+  if (isLoading || !data) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="h-12 w-12 bg-slate-800 rounded-full mb-4"></div>
+          <p className="text-slate-500 font-medium">Carregando Dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* HEADER & CHAT RÁPIDO */}
+      <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-100">Visão Geral</h1>
+          <p className="text-slate-400 mt-1">Resumo do mês atual e próximos passos</p>
+        </div>
+        
+        {/* FAST CHAT (Fase 7 inline) */}
+        <div className="w-full md:w-96">
+          <form onSubmit={handleFastChat} className="relative">
+            <input 
+              type="text" 
+              value={fastChatInput}
+              onChange={(e) => setFastChatInput(e.target.value)}
+              placeholder="Digite rápido: -50 ifood"
+              className="w-full bg-slate-900 border border-slate-700 rounded-full py-3 px-5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-inner"
+            />
+            <button 
+              type="submit"
+              className="absolute right-2 top-2 bg-emerald-600 hover:bg-emerald-500 text-white p-1.5 rounded-full transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* ALERTAS PROATIVOS */}
+      {(data.upcomingCharges.length > 0 || data.pendingInvoices.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {data.pendingInvoices.map(inv => (
+            <div key={inv.id} className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-amber-500/20 p-2 rounded-lg text-amber-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-amber-500 font-semibold text-sm">Fatura Pendente</h3>
+                  <p className="text-amber-400/80 text-xs">Você tem dados de {inv.motor} aguardando revisão</p>
+                </div>
+              </div>
+              <Link href={inv.motor === "SANTANDER" ? `/motores/santander?invoiceId=${inv.id}` : `/motores/nubank-rateio?invoiceId=${inv.id}`} className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 text-sm font-medium rounded-lg transition-colors">
+                Revisar
+              </Link>
+            </div>
+          ))}
+
+          {data.upcomingCharges.map(charge => (
+            <div key={charge.id} className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex items-center justify-between">
+               <div className="flex items-center gap-3">
+                <div className="bg-red-500/20 p-2 rounded-lg text-red-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-red-400 font-semibold text-sm">Vencimento Próximo</h3>
+                  <p className="text-red-400/80 text-xs">{charge.description} vence em {charge.nextChargeAt ? new Date(charge.nextChargeAt).toLocaleDateString() : 'breve'}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="font-bold text-red-400">R$ {Number(charge.amount).toFixed(2)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* CARDS PRINCIPAIS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        {/* Despesas do Mês */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm">
+          <h2 className="text-slate-400 font-medium text-sm mb-2">Despesas do Mês</h2>
+          <p className="text-4xl font-bold text-slate-100 mb-1">
+            R$ {data.totalExpense.toFixed(2)}
+          </p>
+          <div className="w-full bg-slate-800 h-1.5 rounded-full mt-4 overflow-hidden">
+            <div className="bg-red-500 h-full" style={{ width: `${Math.min((data.totalExpense / 3000) * 100, 100)}%` }}></div>
+          </div>
+          <p className="text-xs text-slate-500 mt-2 text-right">Teto sugerido: R$ 3000</p>
+        </div>
+
+        {/* Gasto Diário Sugerido */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden">
+          <div className="absolute -right-6 -top-6 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl"></div>
+          <h2 className="text-slate-400 font-medium text-sm mb-2">Gasto Diário Recomendado</h2>
+          <p className="text-4xl font-bold text-emerald-400 mb-1">
+            R$ {data.dailyRecommended.toFixed(2)}
+          </p>
+          <p className="text-xs text-slate-500 mt-4 bg-slate-950 p-2 rounded-md inline-block">
+            Baseado no saldo livre de R$ {data.budgetLeft.toFixed(2)}
+          </p>
+        </div>
+
+        {/* Breakdown de Motores */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm">
+          <h2 className="text-slate-400 font-medium text-sm mb-4">Origem dos Gastos</h2>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center text-sm">
+              <span className="flex items-center gap-2 text-slate-300">
+                <span className="w-2 h-2 rounded-full bg-blue-500"></span> Mercado Pago
+              </span>
+              <span className="font-medium text-slate-200">R$ {(data.statsByMotor["MERCADO_PAGO"] || 0).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="flex items-center gap-2 text-slate-300">
+                <span className="w-2 h-2 rounded-full bg-red-500"></span> Santander
+              </span>
+              <span className="font-medium text-slate-200">R$ {(data.statsByMotor["SANTANDER"] || 0).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="flex items-center gap-2 text-slate-300">
+                <span className="w-2 h-2 rounded-full bg-purple-500"></span> Nubank (Sua parte)
+              </span>
+              <span className="font-medium text-slate-200">R$ {(data.statsByMotor["NUBANK_RATEIO"] || 0).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center text-sm">
+              <span className="flex items-center gap-2 text-slate-300">
+                <span className="w-2 h-2 rounded-full bg-yellow-500"></span> Cartão Tia
+              </span>
+              <span className="font-medium text-slate-200">R$ {(data.statsByMotor["CARTAO_TIA"] || 0).toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* QUICK LINKS MOTORES */}
+      <div>
+        <h2 className="text-lg font-semibold text-slate-200 mb-4">Acesso Rápido aos Motores</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Link href="/motores/mercado-pago" className="bg-slate-900 hover:bg-slate-800 border border-slate-800 p-4 rounded-xl transition-colors flex flex-col items-center justify-center text-center gap-2 group">
+            <div className="w-10 h-10 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+              M1
+            </div>
+            <span className="text-sm font-medium text-slate-300">Mercado Pago</span>
+          </Link>
+          <Link href="/motores/santander" className="bg-slate-900 hover:bg-slate-800 border border-slate-800 p-4 rounded-xl transition-colors flex flex-col items-center justify-center text-center gap-2 group">
+            <div className="w-10 h-10 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+              M2
+            </div>
+            <span className="text-sm font-medium text-slate-300">Santander</span>
+          </Link>
+          <Link href="/motores/nubank-rateio" className="bg-slate-900 hover:bg-slate-800 border border-slate-800 p-4 rounded-xl transition-colors flex flex-col items-center justify-center text-center gap-2 group">
+            <div className="w-10 h-10 rounded-full bg-purple-500/10 text-purple-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+              M3
+            </div>
+            <span className="text-sm font-medium text-slate-300">Nubank Mãe</span>
+          </Link>
+          <Link href="/motores/cartao-tia" className="bg-slate-900 hover:bg-slate-800 border border-slate-800 p-4 rounded-xl transition-colors flex flex-col items-center justify-center text-center gap-2 group">
+            <div className="w-10 h-10 rounded-full bg-yellow-500/10 text-yellow-500 flex items-center justify-center group-hover:scale-110 transition-transform">
+              M4
+            </div>
+            <span className="text-sm font-medium text-slate-300">Cartão Tia</span>
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
