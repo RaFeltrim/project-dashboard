@@ -21,6 +21,8 @@ enum ExpenseSection {
   PESSOAL
   CASA
   PROFISSIONAL
+  MAE
+  TERCEIROS
 }
 
 enum MotorType {

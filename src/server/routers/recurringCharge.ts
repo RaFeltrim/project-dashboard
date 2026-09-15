@@ -52,8 +52,13 @@ export const recurringChargeRouter = createTRPCRouter({
     }),
 
   toggleActive: publicProcedure
-    .input(z.object({ id: z.string(), active: z.boolean() }))
+    .input(z.object({ id: z.string(), userId: z.string(), active: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
+      // 🔒 Security Gate
+      const charge = await ctx.prisma.recurringCharge.findUnique({ where: { id: input.id } });
+      if (!charge || charge.userId !== input.userId) {
+        throw new Error("Acesso negado: recorrência não encontrada ou não pertence ao usuário.");
+      }
       return ctx.prisma.recurringCharge.update({
         where: { id: input.id },
         data: { active: input.active },
@@ -61,10 +66,43 @@ export const recurringChargeRouter = createTRPCRouter({
     }),
 
   delete: publicProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: z.string(), userId: z.string() }))
     .mutation(async ({ ctx, input }) => {
+      // 🔒 Security Gate
+      const charge = await ctx.prisma.recurringCharge.findUnique({ where: { id: input.id } });
+      if (!charge || charge.userId !== input.userId) {
+        throw new Error("Acesso negado: recorrência não encontrada ou não pertence ao usuário.");
+      }
       return ctx.prisma.recurringCharge.delete({
         where: { id: input.id },
+      });
+    }),
+
+  updateInstallment: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        userId: z.string(),
+        newCurrentIndex: z.number().min(1),
+        newTotal: z.number().min(1).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const charge = await ctx.prisma.recurringCharge.findUnique({ where: { id: input.id } });
+      if (!charge || charge.userId !== input.userId) {
+        throw new Error("Acesso negado: lançamento não encontrado ou não pertence ao usuário.");
+      }
+
+      const total = input.newTotal ?? charge.installmentTotal ?? input.newCurrentIndex;
+      const isFinished = input.newCurrentIndex >= total;
+
+      return ctx.prisma.recurringCharge.update({
+        where: { id: input.id },
+        data: {
+          installmentIndex: input.newCurrentIndex,
+          installmentTotal: total,
+          active: !isFinished, // Pausa se já quitou todas
+        },
       });
     }),
 });

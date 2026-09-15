@@ -21,6 +21,9 @@ export default function NubankRateioPage() {
   
   const [advancements, setAdvancements] = useState<Record<number, number>>({});
   const [vaultSelections, setVaultSelections] = useState<Record<number, string>>({});
+  
+  const [targetMonth, setTargetMonth] = useState<number>(new Date().getMonth());
+  const [targetYear, setTargetYear] = useState<number>(new Date().getFullYear());
 
   const router = useRouter();
 
@@ -142,6 +145,8 @@ export default function NubankRateioPage() {
     confirmInvoice.mutate({
       invoiceId,
       userId,
+      targetMonth,
+      targetYear,
       transactions: parsedData.itens.map((t: any, idx: number) => {
         const adiantados = advancements[idx] || 0;
         const multiplier = adiantados + 1;
@@ -393,6 +398,42 @@ export default function NubankRateioPage() {
                   value={parsedData.whatsapp_report || ""}
                 />
               </div>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm mb-6">
+              <h3 className="text-sm font-semibold text-slate-400 mb-3">Mês de Competência da Fatura (Para o Dashboard)</h3>
+              <div className="flex gap-4">
+                <select 
+                  value={targetMonth} 
+                  onChange={(e) => setTargetMonth(parseInt(e.target.value))}
+                  className="bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value={0}>Janeiro</option>
+                  <option value={1}>Fevereiro</option>
+                  <option value={2}>Março</option>
+                  <option value={3}>Abril</option>
+                  <option value={4}>Maio</option>
+                  <option value={5}>Junho</option>
+                  <option value={6}>Julho</option>
+                  <option value={7}>Agosto</option>
+                  <option value={8}>Setembro</option>
+                  <option value={9}>Outubro</option>
+                  <option value={10}>Novembro</option>
+                  <option value={11}>Dezembro</option>
+                </select>
+                <select 
+                  value={targetYear} 
+                  onChange={(e) => setTargetYear(parseInt(e.target.value))}
+                  className="bg-slate-950 border border-slate-800 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value={2025}>2025</option>
+                  <option value={2026}>2026</option>
+                  <option value={2027}>2027</option>
+                </select>
+              </div>
+              <p className="text-xs text-slate-500 mt-2">
+                As datas originais das compras ({parsedData.mes_referencia}) serão sobrescritas para o dia 1º deste mês no banco de dados, para que apareçam corretamente no fluxo de caixa do Dashboard.
+              </p>
             </div>
 
             <button

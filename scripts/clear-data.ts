@@ -2,6 +2,13 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+// 🚨 GUARD DE SEGURANÇA: Impede execução acidental em produção
+if (process.env.NODE_ENV === "production") {
+  console.error("❌ BLOQUEADO: Este script NÃO pode ser executado em ambiente de PRODUÇÃO.");
+  console.error("   Ambiente detectado: production");
+  process.exit(1);
+}
+
 async function clearData() {
   console.log("🧹 Iniciando limpeza de dados...");
 

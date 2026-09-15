@@ -4,6 +4,8 @@ import { useState } from "react";
 import { trpc } from "../../../lib/trpc";
 import { useSession } from "next-auth/react";
 
+import { SEED_USER_ID } from "../../../lib/constants";
+
 export default function CaixinhasPage() {
   const { data: session } = useSession();
   const utils = trpc.useUtils();
@@ -15,10 +17,10 @@ export default function CaixinhasPage() {
   const [activeVault, setActiveVault] = useState<string | null>(null);
   const [depositAmount, setDepositAmount] = useState<number | "">("");
   
-  const userId = session?.user?.id || "seed-user";
+  const userId = session?.user?.id ?? SEED_USER_ID;
 
   const vaultsQuery = trpc.vault.getAll.useQuery({ userId }, {
-    enabled: !!session,
+    enabled: !!userId,
   });
 
   const createVault = trpc.vault.create.useMutation({

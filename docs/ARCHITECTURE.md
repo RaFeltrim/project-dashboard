@@ -33,8 +33,8 @@ O fluxo central da aplicação não ocorre pela adição manual clássica de tra
 
 ### Motor 3: Nubank / Stakeholder Mãe (Motor IA)
 - **Cores Oficiais na UI:** Roxo 💜
-- **Função:** Rateio automático de fatura compartilhada. Quando o usuário utiliza cartões atrelados ao titular familiar, ele não precisa separar cada linha manualmente.
-- **Integração:** Interface de "Textarea". O texto da fatura é copiado do app para a tela; a OpenAI (`gpt-4o-mini`) entra processando e destacando as linhas pertencentes ao usuário real, resultando em um rateio exato.
+- **Função:** Rateio automático de fatura compartilhada. Quando o usuário utiliza o cartão da mãe (titular), ele não precisa separar cada linha manualmente.
+- **Integração:** Upload de PDF via `/api/upload-pdf`. O texto extraído é enviado ao **Google Gemini** (`gemini-2.5-flash`) via prompt estruturado com schema JSON nativo. A IA classifica cada item em stakeholders: `SUB_PESSOAL`, `AP`, `TERCEIROS` e `MAE`. Ao confirmar o rateio, o usuário escolhe o "Mês de Competência" e as transações são salvas com `section` mapeada para `ExpenseSection` no banco.
 
 ### Motor 4: Cartão Tia (Recorrências)
 - **Cores Oficiais na UI:** Amarelo 🟡

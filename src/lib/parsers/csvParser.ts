@@ -1,11 +1,7 @@
 import { mapCategory } from "./categoryMapper";
+import type { ParsedTransaction } from "../../types/finance";
 
-export interface ParsedTransaction {
-  date: string;
-  description: string;
-  amount: number;
-  categoryGuess: string;
-}
+export type { ParsedTransaction };
 
 /**
  * Faz o parse de um CSV simples (ex: Data, Descrição, Valor)

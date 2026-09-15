@@ -5,13 +5,18 @@ import { trpc } from "../lib/trpc";
 import Link from "next/link";
 import { useState } from "react";
 import { SEED_USER_ID } from "../lib/constants";
+import { DashboardSkeleton } from "../components/DashboardSkeleton";
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
 
 export default function Home() {
   const { data: session } = useSession();
   const userId = session?.user?.id ?? SEED_USER_ID;
 
+  const [timeRange, setTimeRange] = useState<'THIS_MONTH' | 'LAST_30_DAYS' | 'ALL_TIME'>('THIS_MONTH');
+  const [statusFilter, setStatusFilter] = useState<'PAGAR' | 'PAGOS' | 'AMBOS'>('AMBOS');
+
   const { data, isLoading } = trpc.dashboard.getConsolidatedData.useQuery(
-    { userId },
+    { userId, timeRange, statusFilter },
     { enabled: !!userId }
   );
 
@@ -34,15 +39,15 @@ export default function Home() {
   };
 
   if (isLoading || !data) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="animate-pulse flex flex-col items-center">
-          <div className="h-12 w-12 bg-slate-800 rounded-full mb-4"></div>
-          <p className="text-slate-500 font-medium">Carregando Dashboard...</p>
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
+
+  const motorData = [
+    { name: 'Mercado Pago', value: data.statsByMotor["MERCADO_PAGO"] || 0, color: '#3b82f6' },
+    { name: 'Santander', value: data.statsByMotor["SANTANDER"] || 0, color: '#ef4444' },
+    { name: 'Nubank', value: data.statsByMotor["NUBANK_RATEIO"] || 0, color: '#a855f7' },
+    { name: 'Cartão Tia', value: data.statsByMotor["CARTAO_TIA"] || 0, color: '#eab308' },
+  ].filter(m => m.value > 0);
 
   return (
     <div className="space-y-8">
@@ -50,7 +55,9 @@ export default function Home() {
       <div className="flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-100">Visão Geral</h1>
-          <p className="text-slate-400 mt-1">Resumo do mês atual e próximos passos</p>
+          <p className="text-slate-400 mt-1">
+            {timeRange === 'THIS_MONTH' ? 'Resumo do mês atual' : timeRange === 'LAST_30_DAYS' ? 'Resumo dos últimos 30 dias' : 'Visão completa de todos os tempos'}
+          </p>
         </div>
         
         {/* FAST CHAT (Fase 7 inline) */}
@@ -72,6 +79,20 @@ export default function Home() {
               </svg>
             </button>
           </form>
+        </div>
+      </div>
+
+      {/* FILTROS GLOBAIS */}
+      <div className="flex flex-col md:flex-row gap-4 justify-between bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-sm">
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setTimeRange('THIS_MONTH')} className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${timeRange === 'THIS_MONTH' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>Este Mês</button>
+          <button onClick={() => setTimeRange('LAST_30_DAYS')} className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${timeRange === 'LAST_30_DAYS' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>Últimos 30 Dias</button>
+          <button onClick={() => setTimeRange('ALL_TIME')} className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${timeRange === 'ALL_TIME' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>Todo Período</button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setStatusFilter('AMBOS')} className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${statusFilter === 'AMBOS' ? 'bg-slate-700 text-slate-200 border border-slate-600' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>Ambos (Visão Geral)</button>
+          <button onClick={() => setStatusFilter('PAGAR')} className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${statusFilter === 'PAGAR' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>A Pagar (Futuro)</button>
+          <button onClick={() => setStatusFilter('PAGOS')} className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${statusFilter === 'PAGOS' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>Pagos (Passado)</button>
         </div>
       </div>
 
@@ -146,34 +167,28 @@ export default function Home() {
         </div>
 
         {/* Breakdown de Motores */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm flex flex-col">
           <h2 className="text-slate-400 font-medium text-sm mb-4">Origem dos Gastos</h2>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center text-sm">
-              <span className="flex items-center gap-2 text-slate-300">
-                <span className="w-2 h-2 rounded-full bg-blue-500"></span> Mercado Pago
-              </span>
-              <span className="font-medium text-slate-200">R$ {(data.statsByMotor["MERCADO_PAGO"] || 0).toFixed(2)}</span>
+          {motorData.length === 0 ? (
+            <p className="text-slate-500 text-sm mt-8 text-center">Sem dados de motores</p>
+          ) : (
+            <div className="h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={motorData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={70} stroke="none">
+                    {motorData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip 
+                    formatter={(value: any) => `R$ ${Number(value || 0).toFixed(2)}`}
+                    contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f8fafc', borderRadius: '8px' }}
+                    itemStyle={{ color: '#f8fafc' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="flex items-center gap-2 text-slate-300">
-                <span className="w-2 h-2 rounded-full bg-red-500"></span> Santander
-              </span>
-              <span className="font-medium text-slate-200">R$ {(data.statsByMotor["SANTANDER"] || 0).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="flex items-center gap-2 text-slate-300">
-                <span className="w-2 h-2 rounded-full bg-purple-500"></span> Nubank (Sua parte)
-              </span>
-              <span className="font-medium text-slate-200">R$ {(data.statsByMotor["NUBANK_RATEIO"] || 0).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="flex items-center gap-2 text-slate-300">
-                <span className="w-2 h-2 rounded-full bg-yellow-500"></span> Cartão Tia
-              </span>
-              <span className="font-medium text-slate-200">R$ {(data.statsByMotor["CARTAO_TIA"] || 0).toFixed(2)}</span>
-            </div>
-          </div>
+          )}
         </div>
 
       </div>
@@ -206,6 +221,62 @@ export default function Home() {
             </div>
             <span className="text-sm font-medium text-slate-300">Cartão Tia</span>
           </Link>
+        </div>
+      </div>
+
+      {/* HISTÓRICO E AGRUPAMENTOS TEMPORAIS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+        
+        {/* Histórico por Mês */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm overflow-hidden flex flex-col">
+          <h2 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+            </svg>
+            Histórico por Mês
+          </h2>
+          <div className="h-64 w-full">
+            {data.historyByMonth.length === 0 ? (
+              <p className="text-slate-500 text-sm italic mt-8 text-center">Nenhum dado encontrado para o filtro atual.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.historyByMonth.slice().reverse()} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <XAxis dataKey="label" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `R$${val}`} />
+                  <RechartsTooltip 
+                    formatter={(value: any) => [`R$ ${Number(value || 0).toFixed(2)}`, 'Gasto']}
+                    contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f8fafc', borderRadius: '8px' }}
+                    cursor={{ fill: '#334155', opacity: 0.4 }}
+                  />
+                  <Bar dataKey="expense" fill="#818cf8" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* Histórico por Dia (Últimos 30 c/ Dados) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm overflow-hidden flex flex-col">
+          <h2 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Gastos por Dia (Top Recentes)
+          </h2>
+          <div className="overflow-y-auto max-h-64 pr-2 custom-scrollbar">
+            {data.historyByDay.length === 0 ? (
+              <p className="text-slate-500 text-sm italic">Nenhum dado encontrado.</p>
+            ) : (
+              <ul className="space-y-3">
+                {data.historyByDay.map((d: any, idx: number) => (
+                  <li key={idx} className="flex justify-between items-center bg-slate-800/50 p-3 rounded-lg border border-slate-800">
+                    <span className="text-slate-300 text-sm">{d.dateStr}</span>
+                    <span className="text-red-400 font-bold text-sm">R$ {d.expense.toFixed(2)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
     </div>

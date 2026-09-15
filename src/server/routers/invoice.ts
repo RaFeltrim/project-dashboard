@@ -31,7 +31,7 @@ export const invoiceRouter = createTRPCRouter({
           const buffer = Buffer.from(input.content, 'base64');
           const pdfText = await extractTextFromPDF(buffer);
           
-          const result = await callGeminiJSON(SANTANDER_SYSTEM_PROMPT, buildSantanderPrompt(pdfText));
+          const result = (await callGeminiJSON(SANTANDER_SYSTEM_PROMPT, buildSantanderPrompt(pdfText))) as any;
           if (result?.items) {
             parsedData = result.items;
             status = InvoiceStatus.PARSED;
@@ -47,7 +47,7 @@ export const invoiceRouter = createTRPCRouter({
             textToParse = await extractTextFromPDF(buffer);
           }
 
-          const result = await callGeminiJSON(NUBANK_RATEIO_SYSTEM_PROMPT, buildNubankPrompt(textToParse));
+          const result = (await callGeminiJSON(NUBANK_RATEIO_SYSTEM_PROMPT, buildNubankPrompt(textToParse))) as any;
           if (result && result.itens) {
             parsedData = result; // Store the ENTIRE object (totals, items, report)
             status = InvoiceStatus.PARSED;
@@ -89,12 +89,14 @@ export const invoiceRouter = createTRPCRouter({
       z.object({
         invoiceId: z.string(),
         userId: z.string(),
+        targetMonth: z.number().optional(), // 0 a 11
+        targetYear: z.number().optional(),
         transactions: z.array(
           z.object({
             date: z.string(),
             description: z.string(),
             amount: z.number(),
-            categoryName: z.string().optional(),
+            categoryName: z.string().optional(), // Stakeholder name
             vaultId: z.string().optional(),
           })
         ),
@@ -106,6 +108,11 @@ export const invoiceRouter = createTRPCRouter({
       });
 
       if (!invoice) throw new Error("Invoice não encontrada");
+
+      // 🔒 LGPD Security Gate: verificar propriedade da invoice
+      if (invoice.userId !== input.userId) {
+        throw new Error("Acesso negado: esta fatura não pertence ao usuário informado.");
+      }
 
       // Use a Prisma transaction to ensure Vault deductions are ACID
       return ctx.prisma.$transaction(async (tx) => {
@@ -130,11 +137,26 @@ export const invoiceRouter = createTRPCRouter({
             }
           }
 
+          // Use target date if provided (forces all items to e.g. Sep 1st 2026), else use parsed date
+          if (input.targetMonth !== undefined && input.targetYear !== undefined) {
+            dateObj = new Date(Date.UTC(input.targetYear, input.targetMonth, 1, 12, 0, 0));
+          }
+
+          // Mapear Stakeholder (categoryName) para ExpenseSection
+          const STAKEHOLDER_TO_SECTION: Record<string, string> = {
+            AP: "CASA",
+            TERCEIROS: "TERCEIROS",
+            MAE: "MAE",
+            SUB_PESSOAL: "PESSOAL",
+          };
+          const sectionStr = STAKEHOLDER_TO_SECTION[t.categoryName ?? ""] ?? "PESSOAL";
+
           // Create transaction
           const createdTx = await tx.transaction.create({
             data: {
               userId: input.userId,
               motor: invoice.motor,
+              section: sectionStr as any,
               rawDescription: t.description,
               normalizedDescription: t.description,
               amount: t.amount,

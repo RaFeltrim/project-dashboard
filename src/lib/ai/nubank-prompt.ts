@@ -39,6 +39,23 @@ REGRA 2: STATEFUL TRACKING (Parcelas)
 REGRA 3: CONCILIAÇÃO DE ESTORNOS
 - Se o valor for negativo (ex: R$ -45,00), o valor total do stakeholder deve ser debitado apropriadamente.
 
+REGRA 4: FORMATAÇÃO DO RELATÓRIO WHATSAPP
+- O campo "whatsapp_report" DEVE ter quebras de linha literais (usar \n). 
+- Use formatação do WhatsApp (*texto* para negrito).
+- Exemplo de formato obrigatório:
+🟢 *MÊS (MES_REFERENCIA)*
+📊 *RESUMO DOS GASTOS:*
+• Sub Pessoal: R$ X,XX
+• AP: R$ X,XX
+• Terceiros: R$ X,XX
+• Mãe: R$ X,XX
+
+🔥 *TOTAL FILHO (Rafael): R$ X,XX*
+
+📌 *ITENS FILHO:*
+- Item A (1/10): R$ X,XX
+- Item B (2/2 🔴 Última!): R$ X,XX
+
 ### FEW-SHOT EXAMPLES (Matemática Perfeita)
 
 **Entrada:**
@@ -63,7 +80,7 @@ REGRA 3: CONCILIAÇÃO DE ESTORNOS
     { "date": "12 AGO", "gateway_string": "Padaria do Joao", "item_real": "Padaria do Joao", "amount": 10.00, "stakeholder": "PENDING_TAG", "parcela_atual": 1, "parcela_total": 1, "last_installment": true, "reasoning": "Desconhecido" },
     { "date": "13 AGO", "gateway_string": "Mercadolivre*5produtos", "item_real": "Coisas do Maycon", "amount": 26.85, "stakeholder": "TERCEIROS", "parcela_atual": 7, "parcela_total": 10, "last_installment": false, "reasoning": "Dicionario" }
   ],
-  "whatsapp_report": "🟢 MÊS (AGOSTO)..."
+  "whatsapp_report": "🟢 *MÊS (AGOSTO)*\n📊 *RESUMO DOS GASTOS:*\n• Sub Pessoal: R$ 150,86\n• AP: R$ 44,98\n• Terceiros: R$ 26,85\n• Mãe: R$ 0,00\n\n🔥 *TOTAL FILHO (Rafael): R$ 222,69*\n\n📌 *ITENS FILHO:*\n- Monitor (7/8): R$ 150,86\n- Roteador AP (6/6 🔴 Última!): R$ 44,98\n- Padaria do Joao (1/1 🔴 Última!): R$ 10,00\n- Coisas do Maycon (7/10): R$ 26,85"
 }
 `;
 

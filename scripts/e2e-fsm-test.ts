@@ -1,6 +1,16 @@
 import { appRouter } from "../src/server/routers/_app";
 import { PrismaClient, MotorType } from "@prisma/client";
 
+/**
+ * @deprecated Script de teste FSM manual — NÃO integrado ao Vitest/Playwright.
+ *
+ * Este arquivo foi criado durante o desenvolvimento para validação manual de fluxos.
+ * TODO(Sprint 2 — Rafael-QA): Migrar os cenários relevantes para src/tests/e2e/*.spec.ts
+ * e deletar este arquivo.
+ *
+ * Executar manualmente: npx tsx scripts/e2e-fsm-test.ts
+ */
+
 const prisma = new PrismaClient();
 
 async function runE2ETest() {

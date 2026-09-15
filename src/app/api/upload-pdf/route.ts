@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        const result = await callGeminiJSON(systemPrompt, userPrompt, responseSchema);
+        const result = (await callGeminiJSON(systemPrompt, userPrompt, responseSchema)) as any;
         
         if (motor === MotorType.SANTANDER && result?.items) {
           parsedData = result.items;
