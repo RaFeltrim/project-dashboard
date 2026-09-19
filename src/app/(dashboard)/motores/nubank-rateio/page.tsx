@@ -1,45 +1,59 @@
 "use client";
 
-import { useState } from "react";
-import { trpc } from "../../../lib/trpc";
+import { useState, useMemo } from "react";
+import { trpc } from "../../../../lib/trpc";
 import { useSession } from "next-auth/react";
-import { SEED_USER_ID } from "../../../lib/constants";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+
+interface NubankItem {
+  date: string;
+  gateway_string: string;
+  item_real?: string;
+  amount: number;
+  stakeholder: string;
+  category?: string;
+  last_installment?: boolean;
+  parcela_atual?: number;
+  parcela_total?: number;
+}
+
+interface NubankTotais {
+  sub_pessoal_total?: number;
+  ap_total?: number;
+  terceiros_total?: number;
+  mae_total?: number;
+  geral_filho?: number;
+}
+
+interface ParsedNubankData {
+  itens: NubankItem[];
+  totais?: NubankTotais;
+  whatsapp_report?: string;
+  mes_referencia?: string;
+}
 
 export default function NubankRateioPage() {
   const { data: session } = useSession();
-  const userId = session?.user?.id ?? SEED_USER_ID;
 
   const [invoiceText, setInvoiceText] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
-  const [parsedData, setParsedData] = useState<any | null>(null);
-  const [invoiceId, setInvoiceId] = useState<string | null>(null);
-  const [isReviewMode, setIsReviewMode] = useState(false);
-  const [urlInvoiceId, setUrlInvoiceId] = useState<string | null>(null);
-  
+  const [uploadedParsedData, setUploadedParsedData] = useState<ParsedNubankData | null>(null);
+  const [uploadedInvoiceId, setUploadedInvoiceId] = useState<string | null>(null);
+
   const [advancements, setAdvancements] = useState<Record<number, number>>({});
   const [vaultSelections, setVaultSelections] = useState<Record<number, string>>({});
-  
+
   const [targetMonth, setTargetMonth] = useState<number>(new Date().getMonth());
   const [targetYear, setTargetYear] = useState<number>(new Date().getFullYear());
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlInvoiceId = searchParams.get("invoiceId");
+  const isReviewMode = !!urlInvoiceId;
 
-  const vaultsQuery = trpc.vault.getAll.useQuery({ userId });
+  const vaultsQuery = trpc.vault.getAll.useQuery();
   const vaults = vaultsQuery.data || [];
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const id = params.get("invoiceId");
-      if (id) {
-        setUrlInvoiceId(id);
-        setIsReviewMode(true);
-      }
-    }
-  }, []);
 
   const invoiceQuery = trpc.invoice.getParsedInvoice.useQuery(
     { invoiceId: urlInvoiceId || "" },
@@ -48,12 +62,18 @@ export default function NubankRateioPage() {
     }
   );
 
-  useEffect(() => {
-    if (invoiceQuery.data && invoiceQuery.data.parsedData) {
-      setInvoiceId(invoiceQuery.data.id);
-      setParsedData(typeof invoiceQuery.data.parsedData === 'string' ? JSON.parse(invoiceQuery.data.parsedData) : invoiceQuery.data.parsedData);
+  const parsedData = useMemo<ParsedNubankData | null>(() => {
+    if (uploadedParsedData) return uploadedParsedData;
+    if (invoiceQuery.data?.parsedData) {
+      return typeof invoiceQuery.data.parsedData === "string"
+        ? JSON.parse(invoiceQuery.data.parsedData)
+        : (invoiceQuery.data.parsedData as unknown as ParsedNubankData);
     }
-  }, [invoiceQuery.data]);
+    return null;
+  }, [uploadedParsedData, invoiceQuery.data]);
+
+  const setParsedData = (data: ParsedNubankData | null) => setUploadedParsedData(data);
+  const invoiceId = uploadedInvoiceId || invoiceQuery.data?.id || null;
 
   const handleError = (msg: string) => {
     if (msg.includes("503") || msg.includes("overloaded") || msg.includes("high demand")) {
@@ -65,9 +85,9 @@ export default function NubankRateioPage() {
 
   const uploadAndParse = trpc.invoice.uploadAndParse.useMutation({
     onSuccess: (data) => {
-      setInvoiceId(data.id);
+      setUploadedInvoiceId(data.id);
       if (data.parsedData) {
-        setParsedData(typeof data.parsedData === 'string' ? JSON.parse(data.parsedData) : data.parsedData);
+        setUploadedParsedData(typeof data.parsedData === "string" ? JSON.parse(data.parsedData) : (data.parsedData as unknown as ParsedNubankData));
       } else {
         handleError("Erro no processamento da IA: " + data.errorMessage);
       }
@@ -85,8 +105,8 @@ export default function NubankRateioPage() {
       } else {
         setInvoiceText("");
         setFileName("");
-        setParsedData(null);
-        setInvoiceId(null);
+        setUploadedParsedData(null);
+        setUploadedInvoiceId(null);
       }
     },
   });
@@ -102,15 +122,13 @@ export default function NubankRateioPage() {
   };
 
   const handleParse = async () => {
-    if (!userId) return;
-
     // Se tiver arquivo selecionado, vai pela rota de arquivo
     if (selectedFile) {
       setIsUploading(true);
       try {
         const formData = new FormData();
         formData.append("file", selectedFile);
-        formData.append("userId", userId);
+        
         formData.append("motor", "NUBANK_RATEIO");
         formData.append("personalExpenses", invoiceText);
 
@@ -122,14 +140,15 @@ export default function NubankRateioPage() {
           return;
         }
 
-        setInvoiceId(data.id);
+        setUploadedInvoiceId(data.id);
         if (data.parsedData) {
-          setParsedData(typeof data.parsedData === 'string' ? JSON.parse(data.parsedData) : data.parsedData);
+          setUploadedParsedData(typeof data.parsedData === "string" ? JSON.parse(data.parsedData) : data.parsedData);
         } else {
           handleError("Erro no processamento da IA: " + data.errorMessage);
         }
-      } catch (err: any) {
-        handleError("Erro ao enviar PDF: " + err.message);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Erro desconhecido";
+        handleError("Erro ao enviar PDF: " + message);
       } finally {
         setIsUploading(false);
       }
@@ -144,10 +163,9 @@ export default function NubankRateioPage() {
     
     confirmInvoice.mutate({
       invoiceId,
-      userId,
       targetMonth,
       targetYear,
-      transactions: parsedData.itens.map((t: any, idx: number) => {
+      transactions: parsedData.itens.map((t, idx: number) => {
         const adiantados = advancements[idx] || 0;
         const multiplier = adiantados + 1;
         const finalAmount = t.amount * multiplier;
@@ -171,12 +189,14 @@ export default function NubankRateioPage() {
   };
 
   const handleItemNameChange = (idx: number, newName: string) => {
+    if (!parsedData) return;
     const newData = { ...parsedData };
     newData.itens[idx].item_real = newName;
     setParsedData(newData);
   };
 
   const handleStakeholderChange = (idx: number, newStakeholder: string) => {
+    if (!parsedData) return;
     const newData = { ...parsedData };
     newData.itens[idx].stakeholder = newStakeholder;
     
@@ -186,7 +206,7 @@ export default function NubankRateioPage() {
     let terceiros = 0;
     let mae = 0;
     
-    newData.itens.forEach((t: any) => {
+    newData.itens.forEach((t) => {
       if (t.stakeholder === 'SUB_PESSOAL') subPessoal += t.amount;
       if (t.stakeholder === 'AP') ap += t.amount;
       if (t.stakeholder === 'TERCEIROS') terceiros += t.amount;
@@ -288,7 +308,7 @@ export default function NubankRateioPage() {
               <div className="flex-1 overflow-y-auto max-h-96 space-y-3 pr-2">
                 <h3 className="text-sm font-semibold text-slate-400 mb-2 uppercase">Transações Extraídas</h3>
                 <p className="text-xs text-slate-500 mb-3">Você pode editar os nomes dos itens antes de salvar.</p>
-                {parsedData.itens?.map((item: any, idx: number) => (
+                {parsedData.itens?.map((item, idx: number) => (
                   <div key={idx} className={`p-3 rounded-lg border ${item.stakeholder === 'PENDING_TAG' ? 'bg-amber-950/30 border-amber-500/50' : 'bg-slate-950 border-slate-800'}`}>
                     <div className="flex justify-between items-start mb-1 gap-2">
                       <div className="flex-1">

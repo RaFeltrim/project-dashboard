@@ -1,44 +1,42 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { fetchRecentTransactions } from "../../lib/integrations/mercadoPago";
-import { mapCategory } from "../../lib/parsers/categoryMapper";
 import { MotorType } from "@prisma/client";
 
 export const mercadoPagoRouter = createTRPCRouter({
   // 1. Obter config atual
-  getConfig: publicProcedure
-    .input(z.object({ userId: z.string() }))
-    .query(async ({ ctx, input }) => {
+  getConfig: protectedProcedure
+    .query(async ({ ctx }) => {
       return ctx.prisma.mercadoPagoConfig.findUnique({
-        where: { userId: input.userId },
+        where: { userId: ctx.session.user.id },
       });
     }),
 
   // 2. Salvar Token
-  saveConfig: publicProcedure
+  saveConfig: protectedProcedure
     .input(
       z.object({
-        userId: z.string(),
         accessToken: z.string().min(1),
       })
     )
     .mutation(async ({ ctx, input }) => {
       return ctx.prisma.mercadoPagoConfig.upsert({
-        where: { userId: input.userId },
-        update: { accessToken: input.accessToken },
+        where: { userId: ctx.session.user.id },
         create: {
-          userId: input.userId,
+          userId: ctx.session.user.id,
+          accessToken: input.accessToken,
+        },
+        update: {
           accessToken: input.accessToken,
         },
       });
     }),
 
   // 3. Sincronizar transações
-  sync: publicProcedure
-    .input(z.object({ userId: z.string() }))
-    .mutation(async ({ ctx, input }) => {
+  sync: protectedProcedure
+    .mutation(async ({ ctx }) => {
       const config = await ctx.prisma.mercadoPagoConfig.findUnique({
-        where: { userId: input.userId },
+        where: { userId: ctx.session.user.id },
       });
 
       if (!config || !config.accessToken) {
@@ -56,7 +54,7 @@ export const mercadoPagoRouter = createTRPCRouter({
       // No MVP, vamos apenas inserir. Mas idealmente precisa de uniq constraint no db.
       // Vou simplificar inserindo as que foram "approved" e mapCategory.
       
-      const approvedTxs = mpTxs.filter((t: any) => t.status === "approved");
+      const approvedTxs = mpTxs.filter((t) => t.status === "approved");
 
       let insertedCount = 0;
 
@@ -64,7 +62,7 @@ export const mercadoPagoRouter = createTRPCRouter({
         // Checar se já inseriu nas ultimas 24h
         const existing = await ctx.prisma.transaction.findFirst({
             where: {
-              userId: input.userId,
+              userId: ctx.session.user.id,
               motor: MotorType.MERCADO_PAGO,
               amount: tx.amount,
               rawDescription: tx.description,
@@ -74,7 +72,7 @@ export const mercadoPagoRouter = createTRPCRouter({
           if (!existing) {
             await ctx.prisma.transaction.create({
               data: {
-                userId: input.userId,
+                userId: ctx.session.user.id,
                 motor: MotorType.MERCADO_PAGO,
                 amount: tx.type === "regular_payment" ? -tx.amount : tx.amount, // ajuste de sinal
                 rawDescription: tx.description,
@@ -87,7 +85,7 @@ export const mercadoPagoRouter = createTRPCRouter({
       }
 
       await ctx.prisma.mercadoPagoConfig.update({
-        where: { userId: input.userId },
+        where: { userId: ctx.session.user.id },
         data: { lastSyncAt: new Date() },
       });
 

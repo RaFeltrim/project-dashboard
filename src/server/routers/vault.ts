@@ -1,21 +1,20 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 
 export const vaultRouter = createTRPCRouter({
-  getAll: publicProcedure
-    .input(z.object({ userId: z.string() }))
-    .query(async ({ ctx, input }) => {
+  getAll: protectedProcedure
+    .query(async ({ ctx }) => {
+      const userId = ctx.session.user.id;
       return ctx.prisma.vault.findMany({
-        where: { userId: input.userId },
+        where: { userId },
         orderBy: { createdAt: "desc" },
       });
     }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(
       z.object({
-        userId: z.string(),
         name: z.string().min(1),
         targetAmount: z.number().optional(),
         color: z.string().optional(),
@@ -23,10 +22,11 @@ export const vaultRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
       const existing = await ctx.prisma.vault.findUnique({
         where: {
           userId_name: {
-            userId: input.userId,
+            userId,
             name: input.name,
           },
         },
@@ -41,7 +41,7 @@ export const vaultRouter = createTRPCRouter({
 
       return ctx.prisma.vault.create({
         data: {
-          userId: input.userId,
+          userId,
           name: input.name,
           targetAmount: input.targetAmount,
           color: input.color,
@@ -50,21 +50,21 @@ export const vaultRouter = createTRPCRouter({
       });
     }),
 
-  addFunds: publicProcedure
+  addFunds: protectedProcedure
     .input(
       z.object({
         id: z.string(),
-        userId: z.string(),
         amount: z.number().positive(),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const userId = ctx.session.user.id;
       return ctx.prisma.$transaction(async (tx) => {
         const vault = await tx.vault.findUnique({
           where: { id: input.id },
         });
 
-        if (!vault || vault.userId !== input.userId) {
+        if (!vault || vault.userId !== userId) {
           throw new TRPCError({ code: "NOT_FOUND" });
         }
 
@@ -78,7 +78,7 @@ export const vaultRouter = createTRPCRouter({
         // Register the transfer as a transaction
         await tx.transaction.create({
           data: {
-            userId: input.userId,
+            userId: ctx.session.user.id,
             motor: "MANUAL",
             section: "PESSOAL",
             kind: "TRANSFER", // Using TRANSFER to denote movement to vault

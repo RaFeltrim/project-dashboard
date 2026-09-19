@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { MotorType } from "@prisma/client";
 import { mapCategory } from "../../lib/parsers/categoryMapper";
 
 export const fastChatRouter = createTRPCRouter({
-  process: publicProcedure
-    .input(z.object({ userId: z.string(), message: z.string() }))
+  process: protectedProcedure
+    .input(z.object({ message: z.string() }))
     .mutation(async ({ ctx, input }) => {
       // Regra TDAH: -50 ifood ou +100 pix
       const regex = /^([+-]?\d+(?:[.,]\d{1,2})?)\s+(.+)$/i;
@@ -15,7 +15,7 @@ export const fastChatRouter = createTRPCRouter({
         throw new Error("Formato inválido. Use algo como: -50 ifood");
       }
 
-      let amountStr = match[1].replace(",", ".");
+      const amountStr = match[1].replace(",", ".");
       let amount = parseFloat(amountStr);
       const description = match[2].trim();
 
@@ -28,7 +28,7 @@ export const fastChatRouter = createTRPCRouter({
 
       const tx = await ctx.prisma.transaction.create({
         data: {
-          userId: input.userId,
+          userId: ctx.session.user.id,
           motor: MotorType.MANUAL,
           amount,
           rawDescription: description,

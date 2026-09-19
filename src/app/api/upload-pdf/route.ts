@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../../../server/auth";
 import { extractTextFromPDF } from "../../../lib/parsers/pdfParser";
-import { PrismaClient, MotorType, InvoiceStatus } from "@prisma/client";
+import { PrismaClient, MotorType, InvoiceStatus, Prisma } from "@prisma/client";
 import { callGeminiJSON } from "../../../lib/integrations/gemini";
 import { NUBANK_RATEIO_SYSTEM_PROMPT, buildNubankPrompt, NUBANK_SCHEMA } from "../../../lib/ai/nubank-prompt";
 import { SANTANDER_SYSTEM_PROMPT, buildSantanderPrompt, SANTANDER_SCHEMA } from "../../../lib/ai/santander-prompt";
+import { Schema } from "@google/generative-ai";
 
 const prisma = new PrismaClient();
 
@@ -11,21 +14,26 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    const userId = session?.user?.id;
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const formData = await req.formData();
-    const file = formData.get("file") as File;
-    const userId = formData.get("userId") as string;
-    const motor = formData.get("motor") as MotorType;
+    const file = formData.get("file") as File | null;
+    const motor = formData.get("motor") as MotorType | null;
     const personalExpenses = formData.get("personalExpenses") as string | null;
 
-    if (!file || !userId || !motor) {
-      return NextResponse.json({ error: "Missing file, userId or motor" }, { status: 400 });
+    if (!file || !motor) {
+      return NextResponse.json({ error: "Missing file or motor" }, { status: 400 });
     }
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const fileName = file.name;
     
-    let parsedData: any = null;
+    let parsedData: unknown = null;
     let status: InvoiceStatus = InvoiceStatus.PENDING;
     let errorMessage: string | null = null;
 
@@ -39,7 +47,7 @@ export async function POST(req: NextRequest) {
       // Choose prompt based on motor
       let systemPrompt: string;
       let userPrompt: string;
-      let responseSchema: any = undefined;
+      let responseSchema: Schema | undefined = undefined;
 
       if (motor === MotorType.SANTANDER) {
         systemPrompt = SANTANDER_SYSTEM_PROMPT;
@@ -54,40 +62,42 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        const result = (await callGeminiJSON(systemPrompt, userPrompt, responseSchema)) as any;
+        const result = (await callGeminiJSON(systemPrompt, userPrompt, responseSchema)) as Record<string, unknown>;
         
-        if (motor === MotorType.SANTANDER && result?.items) {
+        if (motor === MotorType.SANTANDER && Array.isArray(result?.items)) {
           parsedData = result.items;
           status = InvoiceStatus.PARSED;
-        } else if (motor === MotorType.NUBANK_RATEIO && result?.itens) {
+        } else if (motor === MotorType.NUBANK_RATEIO && Array.isArray(result?.itens)) {
           parsedData = result; // Store entire object
           status = InvoiceStatus.PARSED;
         } else {
           status = InvoiceStatus.ERROR;
           errorMessage = "A IA não retornou o esquema JSON esperado";
         }
-      } catch (aiErr: any) {
+      } catch (aiErr) {
         status = InvoiceStatus.ERROR;
-        errorMessage = "Erro na IA: " + aiErr.message;
+        const msg = aiErr instanceof Error ? aiErr.message : "Erro desconhecido";
+        errorMessage = "Erro na IA: " + msg;
       }
     }
 
     // Save to DB (store text extracted, not the raw binary)
     const invoice = await prisma.invoice.create({
       data: {
-        userId,
-        motor,
+          userId,
+          motor,
         fileName,
         rawContent: pdfText || "(PDF sem texto extraído)",
         status,
         errorMessage,
-        parsedData: parsedData ? parsedData : undefined,
+        parsedData: parsedData ? (parsedData as Prisma.InputJsonValue) : undefined,
       },
     });
 
     return NextResponse.json(invoice);
-  } catch (err: any) {
+  } catch (err) {
     console.error("[upload-pdf] Error:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Erro interno";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

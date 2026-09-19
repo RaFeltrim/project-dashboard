@@ -1,23 +1,22 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { trpc } from "../lib/trpc";
+import { trpc } from "../../lib/trpc";
 import Link from "next/link";
 import { useState } from "react";
-import { SEED_USER_ID } from "../lib/constants";
-import { DashboardSkeleton } from "../components/DashboardSkeleton";
+
+import { DashboardSkeleton } from "../../components/DashboardSkeleton";
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
 
 export default function Home() {
   const { data: session } = useSession();
-  const userId = session?.user?.id ?? SEED_USER_ID;
+  
 
   const [timeRange, setTimeRange] = useState<'THIS_MONTH' | 'LAST_30_DAYS' | 'ALL_TIME'>('THIS_MONTH');
   const [statusFilter, setStatusFilter] = useState<'PAGAR' | 'PAGOS' | 'AMBOS'>('AMBOS');
 
   const { data, isLoading } = trpc.dashboard.getConsolidatedData.useQuery(
-    { userId, timeRange, statusFilter },
-    { enabled: !!userId }
+    { timeRange, statusFilter }, { enabled: !!session?.user }
   );
 
   const [fastChatInput, setFastChatInput] = useState("");
@@ -34,8 +33,8 @@ export default function Home() {
 
   const handleFastChat = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fastChatInput || !userId) return;
-    fastChat.mutate({ userId, message: fastChatInput });
+    if (!fastChatInput) return;
+    fastChat.mutate({ message: fastChatInput });
   };
 
   if (isLoading || !data) {
@@ -181,7 +180,7 @@ export default function Home() {
                     ))}
                   </Pie>
                   <RechartsTooltip 
-                    formatter={(value: any) => `R$ ${Number(value || 0).toFixed(2)}`}
+                    formatter={(value) => `R$ ${Number(value || 0).toFixed(2)}`}
                     contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f8fafc', borderRadius: '8px' }}
                     itemStyle={{ color: '#f8fafc' }}
                   />
@@ -244,7 +243,7 @@ export default function Home() {
                   <XAxis dataKey="label" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `R$${val}`} />
                   <RechartsTooltip 
-                    formatter={(value: any) => [`R$ ${Number(value || 0).toFixed(2)}`, 'Gasto']}
+                    formatter={(value) => [`R$ ${Number(value || 0).toFixed(2)}`, 'Gasto']}
                     contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', color: '#f8fafc', borderRadius: '8px' }}
                     cursor={{ fill: '#334155', opacity: 0.4 }}
                   />
@@ -268,7 +267,7 @@ export default function Home() {
               <p className="text-slate-500 text-sm italic">Nenhum dado encontrado.</p>
             ) : (
               <ul className="space-y-3">
-                {data.historyByDay.map((d: any, idx: number) => (
+                {data.historyByDay.map((d, idx) => (
                   <li key={idx} className="flex justify-between items-center bg-slate-800/50 p-3 rounded-lg border border-slate-800">
                     <span className="text-slate-300 text-sm">{d.dateStr}</span>
                     <span className="text-red-400 font-bold text-sm">R$ {d.expense.toFixed(2)}</span>

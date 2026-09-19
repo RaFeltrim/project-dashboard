@@ -1,17 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { trpc } from "../../../lib/trpc";
+import { trpc } from "../../../../lib/trpc";
 import { useSession } from "next-auth/react";
-import { SEED_USER_ID } from "../../../lib/constants";
+
 
 export default function CartaoTiaPage() {
   const { data: session } = useSession();
-  const userId = session?.user?.id ?? SEED_USER_ID;
+  
 
-  const { data: charges, refetch } = trpc.recurringCharge.getAll.useQuery(
-    { userId },
-    { enabled: !!userId }
+  const { data: charges, refetch, isLoading } = trpc.recurringCharge.getAll.useQuery(
+    undefined,
+    { enabled: !!session?.user }
   );
 
   const createCharge = trpc.recurringCharge.create.useMutation({
@@ -48,11 +48,10 @@ export default function CartaoTiaPage() {
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userId || !description || !amount) return;
+    if (!description || !amount) return;
 
     if (isInstallment) {
       createCharge.mutate({
-        userId,
         description,
         amount: parseFloat(amount),
         dayOfMonth: parseInt(dayOfMonth),
@@ -62,7 +61,6 @@ export default function CartaoTiaPage() {
       });
     } else {
       createCharge.mutate({
-        userId,
         description,
         amount: parseFloat(amount),
         dayOfMonth: parseInt(dayOfMonth),
@@ -76,12 +74,11 @@ export default function CartaoTiaPage() {
     setCurrentInstallmentInput("1");
   };
 
-  const handleAdvance = (charge: any, delta: number) => {
+  const handleAdvance = (charge: { id: string; installmentIndex?: number | null; installmentTotal?: number | null }, delta: number) => {
     const currentIndex = charge.installmentIndex || 1;
     const newIndex = Math.min((charge.installmentTotal || 1), Math.max(1, currentIndex + delta));
     updateInstallment.mutate({
       id: charge.id,
-      userId,
       newCurrentIndex: newIndex,
     });
   };
@@ -237,7 +234,7 @@ export default function CartaoTiaPage() {
                       )}
 
                       <button
-                        onClick={() => toggleActive.mutate({ id: charge.id, userId, active: !charge.active })}
+                        onClick={() => toggleActive.mutate({ id: charge.id, active: !charge.active })}
                         className={`text-xs px-3 py-1.5 rounded-full font-medium ${
                           charge.active
                             ? "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
@@ -247,7 +244,7 @@ export default function CartaoTiaPage() {
                         {charge.active ? "Ativo" : "Quitado/Pausado"}
                       </button>
                       <button
-                        onClick={() => deleteCharge.mutate({ id: charge.id, userId })}
+                        onClick={() => deleteCharge.mutate({ id: charge.id })}
                         className="text-red-400 hover:text-red-300 p-2"
                         title="Remover"
                       >

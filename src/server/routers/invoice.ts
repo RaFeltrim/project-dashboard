@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "../trpc";
-import { MotorType, InvoiceStatus } from "@prisma/client";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { MotorType, InvoiceStatus, ExpenseSection, Prisma } from "@prisma/client";
 import { parseCSV } from "../../lib/parsers/csvParser";
 import { extractTextFromPDF } from "../../lib/parsers/pdfParser";
 import { callGeminiJSON } from "../../lib/integrations/gemini";
@@ -9,31 +9,30 @@ import { SANTANDER_SYSTEM_PROMPT, buildSantanderPrompt } from "../../lib/ai/sant
 
 export const invoiceRouter = createTRPCRouter({
   // 1. Receber upload e processar o parser
-  uploadAndParse: publicProcedure
+  uploadAndParse: protectedProcedure
     .input(
       z.object({
-        userId: z.string(),
         motor: z.nativeEnum(MotorType),
         fileName: z.string(),
         content: z.string(), // Texto da fatura, CSV ou Base64 de PDF
       })
     )
     .mutation(async ({ ctx, input }) => {
-      let parsedData: any = null;
+      let parsedData: Prisma.InputJsonValue | null = null;
       let status: InvoiceStatus = InvoiceStatus.PENDING;
-      let errorMessage = null;
+      let errorMessage: string | null = null;
 
       try {
         if (input.motor === MotorType.SANTANDER && input.fileName.endsWith(".csv")) {
-          parsedData = parseCSV(input.content);
+          parsedData = parseCSV(input.content) as unknown as Prisma.InputJsonValue;
           status = InvoiceStatus.PARSED;
         } else if (input.motor === MotorType.SANTANDER && input.fileName.endsWith(".pdf")) {
           const buffer = Buffer.from(input.content, 'base64');
           const pdfText = await extractTextFromPDF(buffer);
           
-          const result = (await callGeminiJSON(SANTANDER_SYSTEM_PROMPT, buildSantanderPrompt(pdfText))) as any;
+          const result = (await callGeminiJSON(SANTANDER_SYSTEM_PROMPT, buildSantanderPrompt(pdfText))) as { items?: unknown[] } | null;
           if (result?.items) {
-            parsedData = result.items;
+            parsedData = result.items as unknown as Prisma.InputJsonValue;
             status = InvoiceStatus.PARSED;
           } else {
             status = InvoiceStatus.ERROR;
@@ -47,23 +46,23 @@ export const invoiceRouter = createTRPCRouter({
             textToParse = await extractTextFromPDF(buffer);
           }
 
-          const result = (await callGeminiJSON(NUBANK_RATEIO_SYSTEM_PROMPT, buildNubankPrompt(textToParse))) as any;
+          const result = (await callGeminiJSON(NUBANK_RATEIO_SYSTEM_PROMPT, buildNubankPrompt(textToParse))) as { itens?: unknown[] } | null;
           if (result && result.itens) {
-            parsedData = result; // Store the ENTIRE object (totals, items, report)
+            parsedData = result as unknown as Prisma.InputJsonValue; // Store the ENTIRE object (totals, items, report)
             status = InvoiceStatus.PARSED;
           } else {
             status = InvoiceStatus.ERROR;
             errorMessage = "A IA não retornou o esquema JSON esperado";
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         status = InvoiceStatus.ERROR;
-        errorMessage = err.message;
+        errorMessage = err instanceof Error ? err.message : String(err);
       }
 
       return ctx.prisma.invoice.create({
         data: {
-          userId: input.userId,
+          userId: ctx.session.user.id,
           motor: input.motor,
           fileName: input.fileName,
           rawContent: input.content,
@@ -75,7 +74,7 @@ export const invoiceRouter = createTRPCRouter({
     }),
 
   // 2. Buscar invoice pendente
-  getParsedInvoice: publicProcedure
+  getParsedInvoice: protectedProcedure
     .input(z.object({ invoiceId: z.string() }))
     .query(async ({ ctx, input }) => {
       return ctx.prisma.invoice.findUnique({
@@ -84,11 +83,10 @@ export const invoiceRouter = createTRPCRouter({
     }),
 
   // 3. Confirmar a listagem (transformar em transações reais)
-  confirmInvoice: publicProcedure
+  confirmInvoice: protectedProcedure
     .input(
       z.object({
         invoiceId: z.string(),
-        userId: z.string(),
         targetMonth: z.number().optional(), // 0 a 11
         targetYear: z.number().optional(),
         transactions: z.array(
@@ -110,7 +108,7 @@ export const invoiceRouter = createTRPCRouter({
       if (!invoice) throw new Error("Invoice não encontrada");
 
       // 🔒 LGPD Security Gate: verificar propriedade da invoice
-      if (invoice.userId !== input.userId) {
+      if (invoice.userId !== ctx.session.user.id) {
         throw new Error("Acesso negado: esta fatura não pertence ao usuário informado.");
       }
 
@@ -131,7 +129,7 @@ export const invoiceRouter = createTRPCRouter({
           } else if (t.date.includes(" ")) {
             // Nubank format "10 AGO"
             const parts = t.date.split(" ");
-            const months: any = { JAN: 0, FEV: 1, MAR: 2, ABR: 3, MAI: 4, JUN: 5, JUL: 6, AGO: 7, SET: 8, OUT: 9, NOV: 10, DEZ: 11 };
+            const months: Record<string, number> = { JAN: 0, FEV: 1, MAR: 2, ABR: 3, MAI: 4, JUN: 5, JUL: 6, AGO: 7, SET: 8, OUT: 9, NOV: 10, DEZ: 11 };
             if (parts.length === 2 && months[parts[1]] !== undefined) {
               dateObj = new Date(new Date().getFullYear(), months[parts[1]], parseInt(parts[0]));
             }
@@ -143,20 +141,20 @@ export const invoiceRouter = createTRPCRouter({
           }
 
           // Mapear Stakeholder (categoryName) para ExpenseSection
-          const STAKEHOLDER_TO_SECTION: Record<string, string> = {
-            AP: "CASA",
-            TERCEIROS: "TERCEIROS",
-            MAE: "MAE",
-            SUB_PESSOAL: "PESSOAL",
+          const STAKEHOLDER_TO_SECTION: Record<string, ExpenseSection> = {
+            AP: ExpenseSection.CASA,
+            TERCEIROS: ExpenseSection.TERCEIROS,
+            MAE: ExpenseSection.MAE,
+            SUB_PESSOAL: ExpenseSection.PESSOAL,
           };
-          const sectionStr = STAKEHOLDER_TO_SECTION[t.categoryName ?? ""] ?? "PESSOAL";
+          const sectionVal = STAKEHOLDER_TO_SECTION[t.categoryName ?? ""] ?? ExpenseSection.PESSOAL;
 
           // Create transaction
           const createdTx = await tx.transaction.create({
             data: {
-              userId: input.userId,
+              userId: ctx.session.user.id,
               motor: invoice.motor,
-              section: sectionStr as any,
+              section: sectionVal,
               rawDescription: t.description,
               normalizedDescription: t.description,
               amount: t.amount,

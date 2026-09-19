@@ -3,11 +3,11 @@
 import { useSession } from "next-auth/react";
 import { useState } from "react";
 import Link from "next/link";
-import { SEED_USER_ID } from "../../../lib/constants";
+
 
 export default function InterMotorPage() {
   const { data: session } = useSession();
-  const userId = session?.user?.id ?? SEED_USER_ID;
+  
   const [file, setFile] = useState<File | null>(null);
 
   return (

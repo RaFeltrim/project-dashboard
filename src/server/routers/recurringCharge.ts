@@ -1,21 +1,20 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { MotorType } from "@prisma/client";
 
 export const recurringChargeRouter = createTRPCRouter({
-  getAll: publicProcedure
-    .input(z.object({ userId: z.string() }))
+  getAll: protectedProcedure
+    
     .query(async ({ ctx, input }) => {
       return ctx.prisma.recurringCharge.findMany({
-        where: { userId: input.userId },
+        where: { userId: ctx.session.user.id },
         orderBy: { nextChargeAt: "asc" },
       });
     }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(
       z.object({
-        userId: z.string(),
         description: z.string().min(1),
         amount: z.number().positive(),
         dayOfMonth: z.number().min(1).max(31),
@@ -28,7 +27,7 @@ export const recurringChargeRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       // Logic for nextChargeAt based on startsAt and dayOfMonth
       const now = new Date();
-      let nextChargeAt = new Date(input.startsAt);
+      const nextChargeAt = new Date(input.startsAt);
       nextChargeAt.setDate(input.dayOfMonth);
       if (nextChargeAt < now) {
         nextChargeAt.setMonth(nextChargeAt.getMonth() + 1);
@@ -36,7 +35,7 @@ export const recurringChargeRouter = createTRPCRouter({
 
       return ctx.prisma.recurringCharge.create({
         data: {
-          userId: input.userId,
+          userId: ctx.session.user.id,
           motor: MotorType.CARTAO_TIA,
           description: input.description,
           amount: input.amount,
@@ -51,12 +50,12 @@ export const recurringChargeRouter = createTRPCRouter({
       });
     }),
 
-  toggleActive: publicProcedure
-    .input(z.object({ id: z.string(), userId: z.string(), active: z.boolean() }))
+  toggleActive: protectedProcedure
+    .input(z.object({ id: z.string(), active: z.boolean() }))
     .mutation(async ({ ctx, input }) => {
       // 🔒 Security Gate
       const charge = await ctx.prisma.recurringCharge.findUnique({ where: { id: input.id } });
-      if (!charge || charge.userId !== input.userId) {
+      if (!charge || charge.userId !== ctx.session.user.id) {
         throw new Error("Acesso negado: recorrência não encontrada ou não pertence ao usuário.");
       }
       return ctx.prisma.recurringCharge.update({
@@ -65,12 +64,12 @@ export const recurringChargeRouter = createTRPCRouter({
       });
     }),
 
-  delete: publicProcedure
-    .input(z.object({ id: z.string(), userId: z.string() }))
+  delete: protectedProcedure
+    .input(z.object({ id: z.string(),  }))
     .mutation(async ({ ctx, input }) => {
       // 🔒 Security Gate
       const charge = await ctx.prisma.recurringCharge.findUnique({ where: { id: input.id } });
-      if (!charge || charge.userId !== input.userId) {
+      if (!charge || charge.userId !== ctx.session.user.id) {
         throw new Error("Acesso negado: recorrência não encontrada ou não pertence ao usuário.");
       }
       return ctx.prisma.recurringCharge.delete({
@@ -78,18 +77,17 @@ export const recurringChargeRouter = createTRPCRouter({
       });
     }),
 
-  updateInstallment: publicProcedure
+  updateInstallment: protectedProcedure
     .input(
       z.object({
         id: z.string(),
-        userId: z.string(),
         newCurrentIndex: z.number().min(1),
         newTotal: z.number().min(1).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const charge = await ctx.prisma.recurringCharge.findUnique({ where: { id: input.id } });
-      if (!charge || charge.userId !== input.userId) {
+      if (!charge || charge.userId !== ctx.session.user.id) {
         throw new Error("Acesso negado: lançamento não encontrado ou não pertence ao usuário.");
       }
 

@@ -1,26 +1,28 @@
 import assert from "assert";
-import { SchemaType } from "@google/generative-ai";
+import { Schema, SchemaType } from "@google/generative-ai";
 import { SANTANDER_SCHEMA } from "../lib/ai/santander-prompt";
 import { NUBANK_SCHEMA } from "../lib/ai/nubank-prompt";
 
 // Helper function to validate objects against our Google GenAI Schema format
 // This simulates what the Gemini backend does when using responseSchema
-function validateAgainstSchema(data: any, schema: any): boolean {
+function validateAgainstSchema(data: unknown, schema: Schema): boolean {
   if (schema.type === SchemaType.OBJECT) {
     if (typeof data !== "object" || data === null) return false;
+    const obj = data as Record<string, unknown>;
     for (const req of schema.required || []) {
-      if (!(req in data)) return false;
+      if (!(req in obj)) return false;
     }
-    for (const key in data) {
+    for (const key in obj) {
       if (schema.properties && schema.properties[key]) {
-        if (!validateAgainstSchema(data[key], schema.properties[key])) return false;
+        if (!validateAgainstSchema(obj[key], schema.properties[key])) return false;
       }
     }
     return true;
   }
   if (schema.type === SchemaType.ARRAY) {
     if (!Array.isArray(data)) return false;
-    return data.every(item => validateAgainstSchema(item, schema.items));
+    if (!schema.items) return true;
+    return data.every(item => validateAgainstSchema(item, schema.items as Schema));
   }
   if (schema.type === SchemaType.STRING) return typeof data === "string";
   if (schema.type === SchemaType.NUMBER) return typeof data === "number";
@@ -80,7 +82,8 @@ try {
   
   console.log("=== SUCESSO: CÓDIGO VALIDADO POR TODAS AS PERSONAS ===");
   process.exit(0);
-} catch (err: any) {
-  console.error("❌ FALHA NO BDD:", err.message);
+} catch (err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error("❌ FALHA NO BDD:", msg);
   process.exit(1);
 }

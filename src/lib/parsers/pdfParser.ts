@@ -5,7 +5,7 @@ import { PDFParse } from "pdf-parse";
  * Retorna o texto concatenado de todas as páginas.
  */
 export async function extractTextFromPDF(buffer: Buffer): Promise<string> {
-  // pdf-parse v2 types mark these methods as private, but they are public at runtime
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const parser: any = new PDFParse({ data: new Uint8Array(buffer) });
   await parser.load();
   

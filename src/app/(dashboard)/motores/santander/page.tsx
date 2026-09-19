@@ -1,41 +1,38 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { trpc } from "../../../lib/trpc";
+import { trpc } from "../../../../lib/trpc";
 import { useSession } from "next-auth/react";
-import { SEED_USER_ID } from "../../../lib/constants";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+
+interface ParsedTransaction {
+  date: string;
+  description: string;
+  amount: number;
+  categoryGuess?: string;
+}
 
 export default function SantanderPage() {
   const { data: session } = useSession();
-  const userId = session?.user?.id ?? SEED_USER_ID;
 
   const [fileContent, setFileContent] = useState<string>("");
   const [fileName, setFileName] = useState<string>("");
-  const [parsedTransactions, setParsedTransactions] = useState<any[]>([]);
-  const [invoiceId, setInvoiceId] = useState<string | null>(null);
-  const [isReviewMode, setIsReviewMode] = useState(false);
-  const [urlInvoiceId, setUrlInvoiceId] = useState<string | null>(null);
+  const [uploadedTransactions, setUploadedTransactions] = useState<ParsedTransaction[]>([]);
+  const [uploadedInvoiceId, setUploadedInvoiceId] = useState<string | null>(null);
+
+  const [targetMonth, setTargetMonth] = useState<number>(new Date().getMonth());
+  const [targetYear, setTargetYear] = useState<number>(new Date().getFullYear());
 
   const [advancements, setAdvancements] = useState<Record<number, number>>({});
   const [vaultSelections, setVaultSelections] = useState<Record<number, string>>({});
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlInvoiceId = searchParams.get("invoiceId");
+  const isReviewMode = !!urlInvoiceId;
 
-  const vaultsQuery = trpc.vault.getAll.useQuery({ userId });
+  const vaultsQuery = trpc.vault.getAll.useQuery();
   const vaults = vaultsQuery.data || [];
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const id = params.get("invoiceId");
-      if (id) {
-        setUrlInvoiceId(id);
-        setIsReviewMode(true);
-      }
-    }
-  }, []);
 
   const invoiceQuery = trpc.invoice.getParsedInvoice.useQuery(
     { invoiceId: urlInvoiceId || "" },
@@ -44,12 +41,17 @@ export default function SantanderPage() {
     }
   );
 
-  useEffect(() => {
-    if (invoiceQuery.data && invoiceQuery.data.parsedData) {
-      setInvoiceId(invoiceQuery.data.id);
-      setParsedTransactions(typeof invoiceQuery.data.parsedData === 'string' ? JSON.parse(invoiceQuery.data.parsedData) : invoiceQuery.data.parsedData);
+  const parsedTransactions = useMemo<ParsedTransaction[]>(() => {
+    if (uploadedTransactions.length > 0) return uploadedTransactions;
+    if (invoiceQuery.data?.parsedData) {
+      return typeof invoiceQuery.data.parsedData === "string"
+        ? JSON.parse(invoiceQuery.data.parsedData)
+        : (invoiceQuery.data.parsedData as unknown as ParsedTransaction[]);
     }
-  }, [invoiceQuery.data]);
+    return [];
+  }, [uploadedTransactions, invoiceQuery.data]);
+
+  const invoiceId = uploadedInvoiceId || invoiceQuery.data?.id || null;
 
   const totalInvoice = useMemo(() => {
     return parsedTransactions.reduce((acc, curr, idx) => {
@@ -60,9 +62,9 @@ export default function SantanderPage() {
 
   const uploadAndParse = trpc.invoice.uploadAndParse.useMutation({
     onSuccess: (data) => {
-      setInvoiceId(data.id);
+      setUploadedInvoiceId(data.id);
       if (data.parsedData) {
-        setParsedTransactions(JSON.parse(data.parsedData as string));
+        setUploadedTransactions(JSON.parse(data.parsedData as string));
       }
     },
   });
@@ -75,8 +77,8 @@ export default function SantanderPage() {
       } else {
         setFileContent("");
         setFileName("");
-        setParsedTransactions([]);
-        setInvoiceId(null);
+        setUploadedTransactions([]);
+        setUploadedInvoiceId(null);
       }
     },
   });
@@ -95,7 +97,7 @@ export default function SantanderPage() {
       try {
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("userId", userId);
+        
         formData.append("motor", "SANTANDER");
 
         const res = await fetch("/api/upload-pdf", { method: "POST", body: formData });
@@ -106,14 +108,15 @@ export default function SantanderPage() {
           return;
         }
 
-        setInvoiceId(data.id);
+        setUploadedInvoiceId(data.id);
         if (data.parsedData) {
-          setParsedTransactions(typeof data.parsedData === 'string' ? JSON.parse(data.parsedData) : data.parsedData);
+          setUploadedTransactions(typeof data.parsedData === 'string' ? JSON.parse(data.parsedData) : data.parsedData);
         } else {
           alert("Erro no processamento: " + data.errorMessage);
         }
-      } catch (err: any) {
-        alert("Erro ao enviar PDF: " + err.message);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Erro desconhecido";
+        alert("Erro ao enviar PDF: " + message);
       } finally {
         setIsUploading(false);
       }
@@ -124,7 +127,6 @@ export default function SantanderPage() {
         const text = event.target?.result as string;
         setFileContent(text);
         uploadAndParse.mutate({
-          userId,
           motor: "SANTANDER",
           fileName: file.name,
           content: text,
@@ -138,7 +140,8 @@ export default function SantanderPage() {
     if (!invoiceId || parsedTransactions.length === 0) return;
     confirmInvoice.mutate({
       invoiceId,
-      userId,
+      targetMonth,
+      targetYear,
       transactions: parsedTransactions.map((t, idx) => {
         const adiantados = advancements[idx] || 0;
         const multiplier = adiantados + 1;
@@ -195,6 +198,27 @@ export default function SantanderPage() {
               <div>
                 <h3 className="text-lg font-semibold text-slate-200">Prévia de Importação ({parsedTransactions.length} itens)</h3>
                 <p className="text-sm text-slate-400 mt-1">Total da fatura: <span className="font-bold text-red-400">R$ {totalInvoice.toFixed(2)}</span></p>
+                <div className="mt-3 flex items-center gap-2 bg-slate-900/50 p-2 rounded-lg border border-slate-800/50">
+                  <label className="text-sm text-slate-300 font-medium">Mês da Fatura:</label>
+                  <select 
+                    value={targetMonth} 
+                    onChange={(e) => setTargetMonth(parseInt(e.target.value))}
+                    className="bg-slate-950 border border-slate-700 text-slate-200 text-sm rounded p-1.5 focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none"
+                  >
+                    {["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"].map((m, i) => (
+                      <option key={i} value={i}>{m}</option>
+                    ))}
+                  </select>
+                  <select 
+                    value={targetYear} 
+                    onChange={(e) => setTargetYear(parseInt(e.target.value))}
+                    className="bg-slate-950 border border-slate-700 text-slate-200 text-sm rounded p-1.5 focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none"
+                  >
+                    {[2024, 2025, 2026, 2027].map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <button 
                 onClick={handleConfirm}

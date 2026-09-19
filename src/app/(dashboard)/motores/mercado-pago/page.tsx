@@ -1,17 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { trpc } from "../../../lib/trpc";
+import { trpc } from "../../../../lib/trpc";
 import { useSession } from "next-auth/react";
-import { SEED_USER_ID } from "../../../lib/constants";
+
 
 export default function MercadoPagoPage() {
   const { data: session } = useSession();
-  const userId = session?.user?.id ?? SEED_USER_ID;
+  
 
   const { data: config, refetch } = trpc.mercadoPago.getConfig.useQuery(
-    { userId },
-    { enabled: !!userId }
+    undefined,
+    { enabled: !!session?.user }
   );
 
   const [tokenInput, setTokenInput] = useState("");
@@ -37,14 +37,14 @@ export default function MercadoPagoPage() {
 
   const handleSaveToken = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tokenInput || !userId) return;
-    saveConfig.mutate({ userId, accessToken: tokenInput });
+    if (!tokenInput) return;
+    saveConfig.mutate({ accessToken: tokenInput });
   };
 
   const handleSync = () => {
-    if (!userId) return;
+    
     setSyncStatus(null);
-    sync.mutate({ userId });
+    sync.mutate();
   };
 
   return (
@@ -110,7 +110,7 @@ export default function MercadoPagoPage() {
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-sm">
           <h2 className="text-xl font-semibold mb-4 text-slate-200">Sincronização Manual</h2>
           <p className="text-slate-400 text-sm mb-6">
-            O Motor 1 busca automaticamente as transações dos últimos 30 dias que tenham status "aprovado". 
+            O Motor 1 busca automaticamente as transações dos últimos 30 dias que tenham status &quot;aprovado&quot;. 
             Transações já importadas são ignoradas para evitar duplicidade.
           </p>
 

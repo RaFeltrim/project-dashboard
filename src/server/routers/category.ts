@@ -1,21 +1,20 @@
 import { z } from "zod";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { ExpenseSection } from "@prisma/client";
 
 export const categoryRouter = createTRPCRouter({
-  getAll: publicProcedure
-    .input(z.object({ userId: z.string() }))
-    .query(async ({ ctx, input }) => {
+  getAll: protectedProcedure
+    .query(async ({ ctx }) => {
+      const myId = ctx.session.user.id;
       return ctx.prisma.category.findMany({
-        where: { userId: input.userId },
+        where: { userId: myId },
         orderBy: { name: "asc" },
       });
     }),
 
-  create: publicProcedure
+  create: protectedProcedure
     .input(
       z.object({
-        userId: z.string(),
         name: z.string().min(1),
         section: z.nativeEnum(ExpenseSection),
         color: z.string().optional(),
@@ -24,11 +23,14 @@ export const categoryRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       return ctx.prisma.category.create({
-        data: input,
+        data: {
+          ...input,
+          userId: ctx.session.user.id,
+        },
       });
     }),
 
-  delete: publicProcedure
+  delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
       return ctx.prisma.category.delete({

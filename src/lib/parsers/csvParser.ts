@@ -29,7 +29,7 @@ export function parseCSV(csvContent: string): ParsedTransaction[] {
       if (dateRegex.test(rawDate)) {
         // Parse valor numérico BR (1.200,50 -> 1200.50)
         // Remove pontos de milhar, troca vírgula por ponto
-        let numStr = rawValue.replace(/\./g, "").replace(",", ".");
+        const numStr = rawValue.replace(/\./g, "").replace(",", ".");
         const amount = parseFloat(numStr);
 
         if (!isNaN(amount)) {

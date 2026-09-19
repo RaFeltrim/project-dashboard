@@ -3,7 +3,16 @@
 
 const API_BASE_URL = "https://api.mercadopago.com/v1";
 
-export async function getBalance(accessToken: string) {
+interface MercadoPagoPaymentItem {
+  id: string | number;
+  date_created: string;
+  description?: string;
+  transaction_amount: number;
+  operation_type?: string;
+  status?: string;
+}
+
+export async function getBalance(_accessToken: string) {
   // Nota: MercadoPago não tem endpoint simples e público genérico de /balance fácil
   // Muitas vezes precisa do User ID, mas podemos tentar buscar métricas ou 
   // no MVP, assumiremos 0 se não der certo.
@@ -37,7 +46,7 @@ export async function fetchRecentTransactions(accessToken: string, days = 30) {
   const data = await response.json();
   
   // Transformar os dados do MP no nosso formato de transação
-  return (data.results || []).map((item: any) => ({
+  return ((data.results || []) as MercadoPagoPaymentItem[]).map((item) => ({
     id: item.id,
     date: new Date(item.date_created),
     description: item.description || "Transação Mercado Pago",

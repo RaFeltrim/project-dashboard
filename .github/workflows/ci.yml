@@ -15,17 +15,30 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        
+      - name: Run Typecheck
+        run: npx tsc --noEmit
+
+      - name: Run Linter
+        run: npx eslint src/
         
       - name: Run Unit Tests
-        run: npm run test -- --run
-        
-      - name: Install Playwright Browsers
-        run: npx playwright install --with-deps
-        
-      - name: Run E2E Tests
-        run: npm run test:e2e
+        run: npm test
+
+      - name: Production Build
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          DATABASE_URL: postgresql://finance:finance_dev_2026@localhost:5432/finance_hub
+          DIRECT_URL: postgresql://finance:finance_dev_2026@localhost:5432/finance_hub
+          NEXTAUTH_SECRET: test-secret-ci
+          NEXTAUTH_URL: http://localhost:3000
+

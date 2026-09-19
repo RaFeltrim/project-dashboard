@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { trpc } from "../../lib/trpc";
+import { trpc } from "../../../lib/trpc";
 import { useSession } from "next-auth/react";
-import { SEED_USER_ID } from "../../lib/constants";
+
 import { MotorType } from "@prisma/client";
 
 type SortBy = "date" | "description" | "amount" | "motor";
@@ -11,7 +11,7 @@ type SortOrder = "asc" | "desc";
 
 export default function TransacoesPage() {
   const { data: session } = useSession();
-  const userId = session?.user?.id ?? SEED_USER_ID;
+  
 
   const [motorFilter, setMotorFilter] = useState<MotorType | "ALL">("ALL");
   const [search, setSearch] = useState("");
@@ -20,14 +20,13 @@ export default function TransacoesPage() {
 
   const { data: transactions, refetch, isLoading } = trpc.transaction.getAll.useQuery(
     { 
-      userId, 
       take: 100,
       motor: motorFilter !== "ALL" ? motorFilter : undefined,
       search,
       sortBy,
       sortOrder
     },
-    { enabled: !!userId }
+    { enabled: !!session?.user }
   );
 
   const deleteTransaction = trpc.transaction.delete.useMutation({
@@ -125,7 +124,7 @@ export default function TransacoesPage() {
                     </td>
                     <td className="px-6 py-4">
                       <button
-                        onClick={() => deleteTransaction.mutate({ id: tx.id, userId })}
+                        onClick={() => deleteTransaction.mutate({ id: tx.id })}
                         className="text-red-400 hover:text-red-300 font-medium transition-colors"
                       >
                         Excluir

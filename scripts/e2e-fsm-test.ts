@@ -35,8 +35,8 @@ async function runE2ETest() {
   // 2. Criar uma Caixinha para o teste
   console.log("📦 FASE 1: Criando Caixinha de Teste (Vault)");
   const vaultName = `Reserva E2E ${Date.now()}`;
-  const vault = await caller.vault.create({ userId: user.id, name: vaultName, targetAmount: 5000 });
-  await caller.vault.addFunds({ id: vault.id, userId: user.id, amount: 1000 }); // Saldo inicial 1000
+  const vault = await caller.vault.create({ name: vaultName, targetAmount: 5000 });
+  await caller.vault.addFunds({ id: vault.id, amount: 1000 }); // Saldo inicial 1000
   console.log(`✅ Caixinha "${vaultName}" criada com saldo inicial de R$ 1000,00\n`);
 
   // 3. Simular Upload e Parse (Motor 3: Nubank Rateio)
@@ -49,7 +49,6 @@ async function runE2ETest() {
   `;
   
   const invoice = await caller.invoice.uploadAndParse({
-    userId: user.id,
     motor: MotorType.NUBANK_RATEIO,
     fileName: "teste_nubank_e2e.txt",
     content: nubankText
@@ -89,7 +88,6 @@ async function runE2ETest() {
 
   const confirmedTxs = await caller.invoice.confirmInvoice({
     invoiceId: invoice.id,
-    userId: user.id,
     transactions: txs
   });
 

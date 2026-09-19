@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { trpc } from "../../../lib/trpc";
+import { trpc } from "../../../../lib/trpc";
 import { useSession } from "next-auth/react";
 
-import { SEED_USER_ID } from "../../../lib/constants";
+
 
 export default function CaixinhasPage() {
   const { data: session } = useSession();
@@ -17,11 +17,9 @@ export default function CaixinhasPage() {
   const [activeVault, setActiveVault] = useState<string | null>(null);
   const [depositAmount, setDepositAmount] = useState<number | "">("");
   
-  const userId = session?.user?.id ?? SEED_USER_ID;
+  
 
-  const vaultsQuery = trpc.vault.getAll.useQuery({ userId }, {
-    enabled: !!userId,
-  });
+  const vaultsQuery = trpc.vault.getAll.useQuery();
 
   const createVault = trpc.vault.create.useMutation({
     onSuccess: () => {
@@ -50,7 +48,6 @@ export default function CaixinhasPage() {
   const handleCreate = () => {
     if (!newName) return;
     createVault.mutate({
-      userId,
       name: newName,
       targetAmount: newTarget ? Number(newTarget) : undefined,
     });
@@ -60,7 +57,6 @@ export default function CaixinhasPage() {
     if (!depositAmount || Number(depositAmount) <= 0) return;
     addFunds.mutate({
       id,
-      userId,
       amount: Number(depositAmount),
     });
   };

@@ -1,19 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { trpc } from "../../lib/trpc";
+import { trpc } from "../../../lib/trpc";
 import { useSession } from "next-auth/react";
 import { ExpenseSection } from "@prisma/client";
-import { SEED_USER_ID } from "../../lib/constants";
+
 
 export default function CategoriasPage() {
   const { data: session } = useSession();
-  const userId = session?.user?.id ?? SEED_USER_ID;
+  
 
-  const { data: categories, refetch, isLoading } = trpc.category.getAll.useQuery(
-    { userId },
-    { enabled: !!userId }
-  );
+  const { data: categories, refetch, isLoading } = trpc.category.getAll.useQuery(undefined, {
+    enabled: !!session?.user,
+  });
 
   const createCategory = trpc.category.create.useMutation({
     onSuccess: () => {
@@ -34,9 +33,8 @@ export default function CategoriasPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName || !userId) return;
+    if (!newName) return;
     createCategory.mutate({
-      userId,
       name: newName,
       section: newSection,
       color: newColor,
