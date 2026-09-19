@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("rafeltrim@gmail.com");
+  const [password, setPassword] = useState("ap34Maycon");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -34,6 +34,11 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleQuickLogin = (userEmail: string) => {
+    setEmail(userEmail);
+    setPassword("ap34Maycon");
   };
 
   return (
@@ -86,16 +91,42 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium rounded-lg transition-colors shadow-lg shadow-indigo-600/20"
+            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium rounded-lg transition-colors shadow-lg shadow-indigo-600/20 cursor-pointer"
           >
             {loading ? "Entrando..." : "Entrar no Finance Hub"}
           </button>
         </form>
 
-        <div className="mt-6 pt-6 border-t border-slate-800 text-center">
-          <p className="text-xs text-slate-500">
-            Acesso padrão de desenvolvimento pré-preenchido.
+        <div className="mt-6 pt-6 border-t border-slate-800">
+          <p className="text-xs text-slate-400 font-medium mb-3 text-center">
+            Perfis de Acesso Rápido:
           </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => handleQuickLogin("rafeltrim@gmail.com")}
+              className={`px-3 py-2 text-xs rounded-lg border transition-colors cursor-pointer text-left ${
+                email === "rafeltrim@gmail.com"
+                  ? "border-indigo-500 bg-indigo-500/10 text-indigo-300"
+                  : "border-slate-800 bg-slate-800/50 text-slate-400 hover:border-slate-700"
+              }`}
+            >
+              <div className="font-semibold text-slate-200">Rafael Feltrim</div>
+              <div className="text-[10px] text-indigo-400">Admin</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickLogin("gustavo@gmail.com")}
+              className={`px-3 py-2 text-xs rounded-lg border transition-colors cursor-pointer text-left ${
+                email === "gustavo@gmail.com"
+                  ? "border-indigo-500 bg-indigo-500/10 text-indigo-300"
+                  : "border-slate-800 bg-slate-800/50 text-slate-400 hover:border-slate-700"
+              }`}
+            >
+              <div className="font-semibold text-slate-200">Gustavo Contiero</div>
+              <div className="text-[10px] text-slate-400">Rateio Casa</div>
+            </button>
+          </div>
         </div>
       </div>
     </div>
