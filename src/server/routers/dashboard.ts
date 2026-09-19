@@ -5,8 +5,10 @@ import { Prisma } from "@prisma/client";
 export const dashboardRouter = createTRPCRouter({
   getConsolidatedData: protectedProcedure
     .input(z.object({ 
-      timeRange: z.enum(['THIS_MONTH', 'LAST_30_DAYS', 'ALL_TIME']).optional().default('THIS_MONTH'),
-      statusFilter: z.enum(['PAGAR', 'PAGOS', 'AMBOS']).optional().default('AMBOS')
+      timeRange: z.enum(['THIS_MONTH', 'LAST_30_DAYS', 'ALL_TIME', 'CUSTOM_MONTH']).optional().default('THIS_MONTH'),
+      statusFilter: z.enum(['PAGAR', 'PAGOS', 'AMBOS']).optional().default('AMBOS'),
+      selectedMonth: z.number().min(0).max(11).optional(),
+      selectedYear: z.number().optional(),
     }))
     .query(async ({ ctx, input }) => {
       const now = new Date();
@@ -14,7 +16,13 @@ export const dashboardRouter = createTRPCRouter({
       
       // Lógica de Data (timeRange)
       let dateFilter: Prisma.DateTimeFilter | undefined = undefined;
-      if (input.timeRange === 'THIS_MONTH') {
+      if (input.timeRange === 'CUSTOM_MONTH' || (input.selectedMonth !== undefined && input.selectedYear !== undefined && input.timeRange !== 'ALL_TIME' && input.timeRange !== 'LAST_30_DAYS')) {
+        const year = input.selectedYear ?? now.getFullYear();
+        const month = input.selectedMonth ?? now.getMonth();
+        const firstDayOfMonth = new Date(year, month, 1);
+        const firstDayOfNextMonth = new Date(year, month + 1, 1);
+        dateFilter = { gte: firstDayOfMonth, lt: firstDayOfNextMonth };
+      } else if (input.timeRange === 'THIS_MONTH') {
         const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const firstDayOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         dateFilter = { gte: firstDayOfMonth, lt: firstDayOfNextMonth };

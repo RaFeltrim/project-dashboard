@@ -8,15 +8,21 @@ import { useState } from "react";
 import { DashboardSkeleton } from "../../components/DashboardSkeleton";
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
 
+const MONTH_NAMES = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
+
 export default function Home() {
   const { data: session } = useSession();
-  
 
-  const [timeRange, setTimeRange] = useState<'THIS_MONTH' | 'LAST_30_DAYS' | 'ALL_TIME'>('THIS_MONTH');
+  const [timeRange, setTimeRange] = useState<'THIS_MONTH' | 'LAST_30_DAYS' | 'ALL_TIME' | 'CUSTOM_MONTH'>('CUSTOM_MONTH');
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [statusFilter, setStatusFilter] = useState<'PAGAR' | 'PAGOS' | 'AMBOS'>('AMBOS');
 
   const { data, isLoading } = trpc.dashboard.getConsolidatedData.useQuery(
-    { timeRange, statusFilter }, { enabled: !!session?.user }
+    { timeRange, statusFilter, selectedMonth, selectedYear }, { enabled: !!session?.user }
   );
 
   const [fastChatInput, setFastChatInput] = useState("");
@@ -37,6 +43,33 @@ export default function Home() {
     fastChat.mutate({ message: fastChatInput });
   };
 
+  const handlePrevMonth = () => {
+    setTimeRange('CUSTOM_MONTH');
+    if (selectedMonth === 0) {
+      setSelectedMonth(11);
+      setSelectedYear((y) => y - 1);
+    } else {
+      setSelectedMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    setTimeRange('CUSTOM_MONTH');
+    if (selectedMonth === 11) {
+      setSelectedMonth(0);
+      setSelectedYear((y) => y + 1);
+    } else {
+      setSelectedMonth((m) => m + 1);
+    }
+  };
+
+  const handleCurrentMonth = () => {
+    const now = new Date();
+    setSelectedMonth(now.getMonth());
+    setSelectedYear(now.getFullYear());
+    setTimeRange('CUSTOM_MONTH');
+  };
+
   if (isLoading || !data) {
     return <DashboardSkeleton />;
   }
@@ -55,7 +88,11 @@ export default function Home() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-100">Visão Geral</h1>
           <p className="text-slate-400 mt-1">
-            {timeRange === 'THIS_MONTH' ? 'Resumo do mês atual' : timeRange === 'LAST_30_DAYS' ? 'Resumo dos últimos 30 dias' : 'Visão completa de todos os tempos'}
+            {timeRange === 'ALL_TIME' 
+              ? 'Visão completa de todos os tempos' 
+              : timeRange === 'LAST_30_DAYS' 
+              ? 'Resumo dos últimos 30 dias' 
+              : `Resumo de ${MONTH_NAMES[selectedMonth]} de ${selectedYear}`}
           </p>
         </div>
         
@@ -81,17 +118,101 @@ export default function Home() {
         </div>
       </div>
 
-      {/* FILTROS GLOBAIS */}
-      <div className="flex flex-col md:flex-row gap-4 justify-between bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-sm">
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => setTimeRange('THIS_MONTH')} className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${timeRange === 'THIS_MONTH' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>Este Mês</button>
-          <button onClick={() => setTimeRange('LAST_30_DAYS')} className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${timeRange === 'LAST_30_DAYS' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>Últimos 30 Dias</button>
-          <button onClick={() => setTimeRange('ALL_TIME')} className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${timeRange === 'ALL_TIME' ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>Todo Período</button>
+      {/* FILTROS GLOBAIS COM SELETOR DE MÊS */}
+      <div className="flex flex-col lg:flex-row gap-4 justify-between bg-slate-900 border border-slate-800 p-4 rounded-xl shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Seletor de Mês e Ano */}
+          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg p-1">
+            <button
+              onClick={handlePrevMonth}
+              title="Mês anterior"
+              aria-label="Mês anterior"
+              className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            
+            <select
+              value={selectedMonth}
+              onChange={(e) => {
+                setSelectedMonth(Number(e.target.value));
+                setTimeRange('CUSTOM_MONTH');
+              }}
+              className="bg-transparent text-sm font-semibold text-slate-200 border-none focus:ring-0 cursor-pointer px-2 py-1"
+            >
+              {MONTH_NAMES.map((name, idx) => (
+                <option key={idx} value={idx} className="bg-slate-900 text-slate-200">
+                  {name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={selectedYear}
+              onChange={(e) => {
+                setSelectedYear(Number(e.target.value));
+                setTimeRange('CUSTOM_MONTH');
+              }}
+              className="bg-transparent text-sm font-semibold text-slate-200 border-none focus:ring-0 cursor-pointer px-2 py-1"
+            >
+              {[2024, 2025, 2026, 2027].map((yr) => (
+                <option key={yr} value={yr} className="bg-slate-900 text-slate-200">
+                  {yr}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={handleNextMonth}
+              title="Próximo mês"
+              aria-label="Próximo mês"
+              className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Atalhos Rápidos */}
+          <button 
+            onClick={handleCurrentMonth} 
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              timeRange === 'CUSTOM_MONTH' && selectedMonth === new Date().getMonth() && selectedYear === new Date().getFullYear()
+                ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' 
+                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+            }`}
+          >
+            Mês Atual
+          </button>
+          <button 
+            onClick={() => setTimeRange('LAST_30_DAYS')} 
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              timeRange === 'LAST_30_DAYS' 
+                ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' 
+                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+            }`}
+          >
+            Últimos 30 Dias
+          </button>
+          <button 
+            onClick={() => setTimeRange('ALL_TIME')} 
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              timeRange === 'ALL_TIME' 
+                ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' 
+                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+            }`}
+          >
+            Todo Período
+          </button>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => setStatusFilter('AMBOS')} className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${statusFilter === 'AMBOS' ? 'bg-slate-700 text-slate-200 border border-slate-600' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>Ambos (Visão Geral)</button>
-          <button onClick={() => setStatusFilter('PAGAR')} className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${statusFilter === 'PAGAR' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>A Pagar (Futuro)</button>
-          <button onClick={() => setStatusFilter('PAGOS')} className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${statusFilter === 'PAGOS' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>Pagos (Passado)</button>
+
+        <div className="flex flex-wrap gap-2 items-center">
+          <button onClick={() => setStatusFilter('AMBOS')} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${statusFilter === 'AMBOS' ? 'bg-slate-700 text-slate-200 border border-slate-600' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>Ambos</button>
+          <button onClick={() => setStatusFilter('PAGAR')} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${statusFilter === 'PAGAR' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>A Pagar</button>
+          <button onClick={() => setStatusFilter('PAGOS')} className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${statusFilter === 'PAGOS' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>Pagos</button>
         </div>
       </div>
 
@@ -143,7 +264,9 @@ export default function Home() {
         
         {/* Despesas do Mês */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm">
-          <h2 className="text-slate-400 font-medium text-sm mb-2">Despesas do Mês</h2>
+          <h2 className="text-slate-400 font-medium text-sm mb-2">
+            {timeRange === 'ALL_TIME' ? 'Total de Despesas' : timeRange === 'LAST_30_DAYS' ? 'Despesas (30 dias)' : `Despesas de ${MONTH_NAMES[selectedMonth]}`}
+          </h2>
           <p className="text-4xl font-bold text-slate-100 mb-1">
             R$ {data.totalExpense.toFixed(2)}
           </p>
