@@ -144,6 +144,25 @@ export const dashboardRouter = createTRPCRouter({
         }
       });
       
+      // 7. Saldo Bancário Oficial (Open Finance via Pluggy)
+      const pluggyItems = await ctx.prisma.pluggyItem.findMany({
+        where: { userId: myId },
+        include: { accounts: true, investments: true }
+      });
+      
+      let openFinanceBalance = 0;
+      let openFinanceInvestments = 0;
+      
+      pluggyItems.forEach(item => {
+        item.accounts.forEach(acc => {
+          openFinanceBalance += Number(acc.balance);
+        });
+        item.investments.forEach(inv => {
+          openFinanceInvestments += Number(inv.balance);
+        });
+      });
+
+      
       // Arrays ordenados para o frontend
       const historyByDay = Object.values(groupedByDay).sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime()).slice(0, 30); // Ultimos 30 dias com dados
       const historyByMonth = Object.keys(groupedByMonth).sort().reverse().map(k => groupedByMonth[k]);
@@ -159,7 +178,10 @@ export const dashboardRouter = createTRPCRouter({
         statsByMotor,
         historyByDay,
         historyByMonth,
-        historyByYear
+        historyByYear,
+        openFinanceBalance,
+        openFinanceInvestments,
+        pluggyItems
       };
     }),
 });

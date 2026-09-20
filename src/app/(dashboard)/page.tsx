@@ -260,14 +260,45 @@ export default function Home() {
       )}
 
       {/* CARDS PRINCIPAIS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        
+        {/* Saldo em Conta (Open Finance) */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden">
+          <div className="absolute -right-6 -top-6 w-24 h-24 bg-blue-500/10 rounded-full blur-xl"></div>
+          <h2 className="text-slate-400 font-medium text-sm mb-2 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
+              <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
+            </svg>
+            Saldo em Contas
+          </h2>
+          <p className="text-3xl font-bold text-slate-100 mb-1">
+            R$ {(data.openFinanceBalance || 0).toFixed(2)}
+          </p>
+          <p className="text-xs text-slate-500 mt-2">Atualizado via Open Finance</p>
+        </div>
+
+        {/* Caixinhas / Investimentos */}
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden">
+          <div className="absolute -right-6 -top-6 w-24 h-24 bg-purple-500/10 rounded-full blur-xl"></div>
+          <h2 className="text-slate-400 font-medium text-sm mb-2 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zM12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clipRule="evenodd" />
+            </svg>
+            Caixinhas
+          </h2>
+          <p className="text-3xl font-bold text-purple-400 mb-1">
+            R$ {(data.openFinanceInvestments || 0).toFixed(2)}
+          </p>
+          <p className="text-xs text-slate-500 mt-2">Rendimentos seguros</p>
+        </div>
         
         {/* Despesas do Mês */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm">
           <h2 className="text-slate-400 font-medium text-sm mb-2">
             {timeRange === 'ALL_TIME' ? 'Total de Despesas' : timeRange === 'LAST_30_DAYS' ? 'Despesas (30 dias)' : `Despesas de ${MONTH_NAMES[selectedMonth]}`}
           </h2>
-          <p className="text-4xl font-bold text-slate-100 mb-1">
+          <p className="text-3xl font-bold text-slate-100 mb-1">
             R$ {data.totalExpense.toFixed(2)}
           </p>
           <div className="w-full bg-slate-800 h-1.5 rounded-full mt-4 overflow-hidden">
@@ -280,7 +311,7 @@ export default function Home() {
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden">
           <div className="absolute -right-6 -top-6 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl"></div>
           <h2 className="text-slate-400 font-medium text-sm mb-2">Gasto Diário Recomendado</h2>
-          <p className="text-4xl font-bold text-emerald-400 mb-1">
+          <p className="text-3xl font-bold text-emerald-400 mb-1">
             R$ {data.dailyRecommended.toFixed(2)}
           </p>
           <p className="text-xs text-slate-500 mt-4 bg-slate-950 p-2 rounded-md inline-block">
