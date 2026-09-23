@@ -9,12 +9,28 @@ export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   try {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     // Pegar todos os Itens do Pluggy conectados no banco
     const pluggyItems = await prisma.pluggyItem.findMany();
     const syncLogs: string[] = [];
 
     for (const dbItem of pluggyItems) {
       try {
+        // Verificar status no Pluggy
+        const pluggyItemData = await pluggyClient.fetchItem(dbItem.pluggyItemId);
+        
+        if (pluggyItemData.status !== "UPDATED") {
+          await prisma.pluggyItem.update({
+            where: { id: dbItem.id },
+            data: { status: pluggyItemData.status }
+          });
+          syncLogs.push(`Item ${dbItem.name} pulado. Status atual: ${pluggyItemData.status}`);
+          continue;
+        }
         // 1. Atualizar contas (Saldos Correntes)
         const accounts = await getAccounts(dbItem.pluggyItemId);
         let totalBalance = 0;

@@ -217,8 +217,27 @@ export default function Home() {
       </div>
 
       {/* ALERTAS PROATIVOS */}
-      {(data.upcomingCharges.length > 0 || data.pendingInvoices.length > 0) && (
+      {(data.requiresReauth || data.upcomingCharges.length > 0 || data.pendingInvoices.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          {data.requiresReauth && (
+            <div className="md:col-span-2 bg-red-500/10 border border-red-500/50 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-red-500/20 p-2 rounded-lg text-red-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-red-500 font-bold text-sm">Atenção: Conexão Bancária Expirada</h3>
+                  <p className="text-red-400/90 text-xs">O Open Finance exigiu renovação de acesso. Sem isso, seus saldos estão desatualizados.</p>
+                </div>
+              </div>
+              <Link href="/motores/mercado-pago" className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm whitespace-nowrap">
+                Reconectar Agora
+              </Link>
+            </div>
+          )}
           {data.pendingInvoices.map(inv => (
             <div key={inv.id} className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">

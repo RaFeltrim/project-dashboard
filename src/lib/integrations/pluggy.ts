@@ -26,11 +26,11 @@ export async function createConnectToken(itemId?: string) {
 }
 
 /**
- * Busca os Itens conectados (Bancos)
+ * Busca um Item conectado pelo ID
  */
-export async function getItems() {
-  const items = await pluggyClient.fetchItems();
-  return items;
+export async function getItem(itemId: string) {
+  const item = await pluggyClient.fetchItem(itemId);
+  return item;
 }
 
 /**

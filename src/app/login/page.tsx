@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("rafeltrim@gmail.com");
-  const [password, setPassword] = useState("ap34Maycon");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -38,7 +38,7 @@ export default function LoginPage() {
 
   const handleQuickLogin = (userEmail: string) => {
     setEmail(userEmail);
-    setPassword("ap34Maycon");
+    // Não preenche a senha automaticamente por segurança
   };
 
   return (

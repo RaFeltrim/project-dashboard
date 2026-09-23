@@ -20,6 +20,11 @@ export const transactionRouter = createTRPCRouter({
       else if (input.sortBy === "motor") orderBy = { motor: input.sortOrder };
 
       const myId = ctx.session.user.id;
+      // TODO [TECH DEBT]: O filtro `section: "CASA"` não está escopado por userId.
+      // Isso significa que transações CASA criadas por qualquer usuário serão visíveis
+      // para todos. O risco é baixo no MVP (apenas Rafael cria transações CASA via UI),
+      // mas a solução definitiva é adicionar `isShared: Boolean` no schema Transaction
+      // e filtrar por `{ isShared: true }` em vez de usar `section` como proxy.
       const where: Prisma.TransactionWhereInput = {
         OR: [
           { userId: myId },

@@ -168,6 +168,8 @@ export const dashboardRouter = createTRPCRouter({
       const historyByMonth = Object.keys(groupedByMonth).sort().reverse().map(k => groupedByMonth[k]);
       const historyByYear = Object.keys(groupedByYear).sort().reverse().map(k => groupedByYear[k]);
 
+      const requiresReauth = pluggyItems.some(item => item.status === 'WAITING_USER_INPUT' || item.status === 'LOGIN_ERROR');
+
       return {
         totalExpense,
         totalIncome,
@@ -181,7 +183,8 @@ export const dashboardRouter = createTRPCRouter({
         historyByYear,
         openFinanceBalance,
         openFinanceInvestments,
-        pluggyItems
+        pluggyItems,
+        requiresReauth
       };
     }),
 });
